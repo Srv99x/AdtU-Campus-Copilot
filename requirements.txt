@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+chromadb
+google-genai
+scikit-learn
+pytest
+python-dotenv
+streamlit
+crawl4ai
+pymupdf4llm
+joblib
+pandas

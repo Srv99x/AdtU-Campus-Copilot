@@ -1,0 +1,7 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+tickets.db
+*.db
+chroma_db/
