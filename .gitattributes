@@ -1,0 +1,2 @@
+# Preserve official Markdown source formatting, including intentional line breaks.
+data/processed/markdown/*.md -whitespace
