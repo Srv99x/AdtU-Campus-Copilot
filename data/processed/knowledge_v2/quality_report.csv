@@ -1,0 +1,114 @@
+chunk_id,source_file,issue_type,severity,description,recommendation
+v2_academic_calendar_0,academic_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_academic_calendar_1,academic_calendar.md,excessive_html_artifacts,info,Contains 22 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_academic_calendar_1,academic_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_0,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_1,class_routine.md,excessive_html_artifacts,info,Contains 103 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_1,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_2,class_routine.md,excessive_html_artifacts,info,Contains 45 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_2,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_3,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_4,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_5,class_routine.md,excessive_html_artifacts,info,Contains 85 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_5,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_6,class_routine.md,excessive_html_artifacts,info,Contains 66 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_6,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_7,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_8,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_9,class_routine.md,excessive_html_artifacts,info,Contains 132 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_9,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_10,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_11,class_routine.md,excessive_html_artifacts,info,Contains 130 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_11,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_12,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_13,class_routine.md,excessive_html_artifacts,info,Contains 124 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_13,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_14,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_15,class_routine.md,excessive_html_artifacts,info,Contains 133 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_15,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_16,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_17,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_18,class_routine.md,excessive_html_artifacts,info,Contains 74 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_18,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_19,class_routine.md,excessive_html_artifacts,info,Contains 78 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_19,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_20,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_21,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_22,class_routine.md,excessive_html_artifacts,info,Contains 90 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_22,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_23,class_routine.md,excessive_html_artifacts,info,Contains 75 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_23,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_24,class_routine.md,excessive_html_artifacts,info,Contains 134 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_24,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_25,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_26,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_27,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_28,class_routine.md,excessive_html_artifacts,info,Contains 95 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_28,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_29,class_routine.md,excessive_html_artifacts,info,Contains 38 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_29,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_30,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_31,class_routine.md,excessive_html_artifacts,info,Contains 146 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_31,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_32,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_33,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_34,class_routine.md,excessive_html_artifacts,info,Contains 81 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_34,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_35,class_routine.md,excessive_html_artifacts,info,Contains 73 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_35,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_36,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_37,class_routine.md,excessive_html_artifacts,info,Contains 79 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_37,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_38,class_routine.md,excessive_html_artifacts,info,Contains 69 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_38,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_39,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_40,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_41,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_42,class_routine.md,excessive_html_artifacts,info,Contains 88 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_42,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_43,class_routine.md,excessive_html_artifacts,info,Contains 76 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_43,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_44,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_45,class_routine.md,excessive_html_artifacts,info,Contains 87 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_45,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_46,class_routine.md,excessive_html_artifacts,info,Contains 67 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_46,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_47,class_routine.md,excessive_html_artifacts,info,Contains 104 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_47,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_48,class_routine.md,excessive_html_artifacts,info,Contains 107 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_48,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_49,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_50,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_51,class_routine.md,excessive_html_artifacts,info,Contains 111 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_51,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_52,class_routine.md,excessive_html_artifacts,info,Contains 108 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_52,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_53,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_54,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_55,class_routine.md,excessive_html_artifacts,info,Contains 106 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_class_routine_55,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_class_routine_56,class_routine.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_0,fees.md,excessive_html_artifacts,info,Contains 24 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_fees_0,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_1,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_2,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_3,fees.md,excessive_html_artifacts,info,Contains 13 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_fees_3,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_4,fees.md,excessive_html_artifacts,info,Contains 18 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_fees_4,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_5,fees.md,excessive_html_artifacts,info,Contains 13 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_fees_5,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_6,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_fees_7,fees.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_0,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_1,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_2,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_3,holiday_calendar.md,excessive_html_artifacts,info,Contains 33 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_holiday_calendar_3,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_4,holiday_calendar.md,excessive_html_artifacts,info,Contains 41 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_holiday_calendar_4,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_5,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_holiday_calendar_6,holiday_calendar.md,excessive_html_artifacts,info,Contains 70 HTML tags from PDF extraction,Informational - HTML tags from pymupdf4llm are expected in some PDFs
+v2_holiday_calendar_6,holiday_calendar.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_scholarships_0,scholarships.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
+v2_scholarships_1,scholarships.md,missing_source_url,info,No public URL available for this PDF source,Normal for PDFs without public URLs. Provenance tracked via source_type and document fields.
