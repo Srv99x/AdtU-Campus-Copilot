@@ -399,7 +399,7 @@ def test_chroma_ingestion_rejects_incomplete_derived_coverage(
     monkeypatch.setattr(chroma_ingest, "load_derived_embedding_records", lambda: [])
     monkeypatch.setattr(chroma_ingest, "index_derived_embeddings", lambda *_: {})
 
-    with pytest.raises(RuntimeError, match="1 derived child records missing"):
+    with pytest.raises(RuntimeError, match="1 derived child, and 0 V2 records missing"):
         chroma_ingest.prepare_records()
 
 
@@ -607,4 +607,37 @@ def test_v2_mismatched_chunk_rejected() -> None:
         embed.index_v2_existing_embeddings(
             [record], {"v2_test_0": source}
         )
+
+
+def test_prepare_records_assembles_exact_dataset() -> None:
+    """Verifies that prepare_records() successfully processes the actual V1+V2 data into 957 records."""
+    ids, documents, metadatas, vectors = chroma_ingest.prepare_records()
+
+    assert len(ids) == 957
+    assert len(documents) == 957
+    assert len(metadatas) == 957
+    assert len(vectors) == 957
+
+    # No duplicates
+    assert len(set(ids)) == 957
+
+    # V1 derived parent lineage
+    derived_records = [m for m in metadatas if "derivation_version" in m]
+    assert len(derived_records) == 45
+    for m in derived_records:
+        assert "parent_chunk_id" in m
+        assert "part_index" in m
+
+    # V2 metadata preservation
+    v2_records = [m for m in metadatas if m["chunk_id"].startswith("v2_")]
+    assert len(v2_records) == 76
+    for m in v2_records:
+        assert "topic" in m
+        assert "source_type" in m
+        
+    # Oversized parents not inserted directly
+    from derived_embeddings import OVERSIZED_PARENT_IDS
+    for parent_id in OVERSIZED_PARENT_IDS:
+        assert parent_id not in ids
+
 

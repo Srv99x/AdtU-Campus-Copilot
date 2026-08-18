@@ -13,13 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from query_embed import create_query_embedding  # noqa: E402
+from derived_embeddings import OVERSIZED_PARENT_IDS, build_derived_units  # noqa: E402
+from embed import load_chunks, load_v2_chunks  # noqa: E402
+from scripts.chroma_ingest import V2_METADATA_FIELDS  # noqa: E402
 
 
 CHROMA_DIR = ROOT / "data" / "processed" / "chroma_db"
 COLLECTION_NAME = "adtu_knowledge"
-EXPECTED_RECORD_COUNT = 842
 QUERY = "What is the hostel fee?"
 REQUIRED_METADATA_FIELDS = (
+    "chunk_id",
     "source_url",
     "category",
     "section",
@@ -28,8 +31,17 @@ REQUIRED_METADATA_FIELDS = (
 )
 
 
+def expected_record_count() -> int:
+    """Return the deterministic direct-canonical plus derived-child record count."""
+
+    chunks = load_chunks()
+    v1_count = len(chunks) - len(OVERSIZED_PARENT_IDS) + len(build_derived_units(chunks))
+    v2_count = len(load_v2_chunks())
+    return v1_count + v2_count
+
+
 def assert_complete_metadata(metadata: dict[str, Any], chunk_id: str) -> None:
-    """Require the five immutable chunk metadata values in every result."""
+    """Require the immutable chunk metadata values in every result."""
 
     for field in REQUIRED_METADATA_FIELDS:
         if field not in metadata:
@@ -41,6 +53,22 @@ def assert_complete_metadata(metadata: dict[str, Any], chunk_id: str) -> None:
                 raise AssertionError(f"Result {chunk_id} has non-boolean is_table.")
         elif not isinstance(value, str) or not value.strip():
             raise AssertionError(f"Result {chunk_id} has empty {field} metadata.")
+
+    if chunk_id.startswith("v2_"):
+        # Verify V2 metadata is present and valid where applicable
+        has_v2_metadata = False
+        for field in V2_METADATA_FIELDS:
+            if field in metadata:
+                has_v2_metadata = True
+                value = metadata[field]
+                if not isinstance(value, (str, bool, int, float)):
+                    raise AssertionError(f"Result {chunk_id} has invalid V2 metadata type for {field}.")
+                if isinstance(value, str) and not value.strip():
+                    raise AssertionError(f"Result {chunk_id} has empty string for {field}.")
+        
+        if not has_v2_metadata:
+            # We expect at least intent_category, topic, source_type, etc. to be present
+            raise AssertionError(f"Result {chunk_id} is missing all V2-specific metadata.")
 
 
 def assert_official_hostel_result(
@@ -66,16 +94,17 @@ def main() -> None:
 
     if not CHROMA_DIR.exists():
         raise RuntimeError(
-            "Chroma database does not exist. Build it only after all 842 embeddings exist."
+            "Chroma database does not exist. Build it only after all 957 embeddings exist."
         )
 
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
     collection = client.get_collection(name=COLLECTION_NAME)
     record_count = collection.count()
-    if record_count != EXPECTED_RECORD_COUNT:
+    expected_count = expected_record_count()
+    if record_count != expected_count:
         raise RuntimeError(
             "Retrieval test requires the complete collection: "
-            f"expected {EXPECTED_RECORD_COUNT}, found {record_count}."
+            f"expected {expected_count}, found {record_count}."
         )
 
     query_embedding = create_query_embedding(QUERY)
