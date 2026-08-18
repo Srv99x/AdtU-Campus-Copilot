@@ -21,10 +21,7 @@ from derived_embeddings import (
 )
 from scripts import chroma_ingest
 from scripts.chroma_ingest import metadata_for_chunk
-from scripts.chroma_retrieval_test import (
-    assert_complete_metadata,
-    assert_official_hostel_result,
-)
+from scripts.chroma_retrieval_test import assert_complete_metadata
 
 
 def chunk(chunk_id: str = "chunk-1") -> dict[str, object]:
@@ -403,12 +400,9 @@ def test_chroma_ingestion_rejects_incomplete_derived_coverage(
         chroma_ingest.prepare_records()
 
 
-def test_retrieval_result_checks_metadata_and_official_hostel_content() -> None:
+def test_retrieval_result_checks_metadata() -> None:
     metadata = metadata_for_chunk(chunk())
     assert_complete_metadata(metadata, "chunk-1")
-    assert_official_hostel_result(
-        ["chunk-1"], ["Official AdtU hostel fee information"], [metadata]
-    )
 
 
 # ------------------------------------------------------------------

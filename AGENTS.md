@@ -37,3 +37,10 @@ Query
 - Every new fact must be traceable to an authoritative source.
 - Unverified information must never enter the trusted knowledge base.
 - Do not start Streamlit until the backend/RAG foundation is complete.
+
+Generated checkpoints such as:
+- data/processed/embeddings.json
+- data/processed/v2_embeddings.json
+- derived_embeddings.json
+
+must never be restored, reset, deleted, or overwritten without explicit approval.
