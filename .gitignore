@@ -6,3 +6,5 @@ __pycache__/
 tickets.db
 *.db
 chroma_db/
+data/processed/derived_embeddings.json
+data/processed/derived_embeddings.tmp

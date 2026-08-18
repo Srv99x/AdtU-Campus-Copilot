@@ -28,3 +28,12 @@ Query
 14. Do not introduce unnecessary dependencies.
 15. Run tests after non-trivial changes.
 16. Do not modify `.env`.
+- The canonical 842-chunk dataset is immutable unless explicitly approved.
+- Existing valid embeddings must never be deleted or regenerated unnecessarily.
+- Do not call paid APIs without explicit approval.
+- Do not expose or commit API keys.
+- Do not commit private/student/WhatsApp data to the public repository.
+- New KB V2 sources must preserve provenance.
+- Every new fact must be traceable to an authoritative source.
+- Unverified information must never enter the trusted knowledge base.
+- Do not start Streamlit until the backend/RAG foundation is complete.
