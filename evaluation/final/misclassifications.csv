@@ -1,0 +1,10 @@
+query,true_label,predicted_label
+lateral entry diploma to degree,admissions,fees
+hostel aur mess ka charge,fees,facilities
+cash counter timings,fees,facilities
+fine for late submission of dues,fees,admissions
+bus facility ka yearly charge,fees,facilities
+scholarship kitna percent milta hai paiso me,fees,facilities
+admission blocking deposit,fees,admissions
+fix laptop wifi issue,out_of_scope,facilities
+gym diet plan for muscle gain,out_of_scope,facilities

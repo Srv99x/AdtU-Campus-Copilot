@@ -1,0 +1,19 @@
+FINAL EVALUATION REPORT
+Model: C:\Users\SOURAV\Desktop\AdtU-Campus-Copilot\app\classifier\model\intent_classifier.pkl
+Test Set: C:\Users\SOURAV\Desktop\AdtU-Campus-Copilot\data\classifier\final_heldout_queries.csv
+--------------------------------------------------
+Accuracy: 0.8200
+Macro Precision: 0.8497
+Macro Recall: 0.8237
+Macro F1: 0.8162
+
+              precision    recall  f1-score   support
+
+  admissions     0.8571    0.9231    0.8889        13
+        fees     0.8750    0.5385    0.6667        13
+  facilities     0.6667    1.0000    0.8000        12
+out_of_scope     1.0000    0.8333    0.9091        12
+
+    accuracy                         0.8200        50
+   macro avg     0.8497    0.8237    0.8162        50
+weighted avg     0.8504    0.8200    0.8146        50

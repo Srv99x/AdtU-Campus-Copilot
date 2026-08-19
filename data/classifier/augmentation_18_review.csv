@@ -1,0 +1,19 @@
+query,label
+admission ke dauran initial payment kitna dena hai,fees
+seat reserve or block karne ke liye advance fee,fees
+first semester fee to be paid at the time of admission,fees
+penalty or late fine last date nikalne par,fees
+grace period for semester dues kitna allowed hai,fees
+total admission confirmation amount,fees
+provisional seat allocation booking fee,fees
+late payment charges for tuition dues,fees
+rohit sharma ne kitne run banaye,out_of_scope
+assam ka capital kya hai,out_of_scope
+stock market me aaj kaunsa share up hai,out_of_scope
+india ki sabse lambi river kaun si hai,out_of_scope
+mutual fund or sip return calculations,out_of_scope
+ipl points table latest update,out_of_scope
+application form fee submit karne ke baad step kya hai,admissions
+admission cancellation procedure after paying advance,admissions
+seat allotment fees pay na karu toh admission reject hoga?,admissions
+without admission fees can i submit my documents for verification,admissions
