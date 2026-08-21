@@ -3,6 +3,7 @@ Tests for app/api/main.py — FastAPI wrapper
 """
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -39,6 +40,92 @@ class TestFastAPIWrapper(unittest.TestCase):
         self.assertEqual(response.json(), {"status": "ok"})
         # Assert Chroma was not called
         self.mock_collection.query.assert_not_called()
+
+    def test_health_check_unchanged_after_ready_endpoint_added(self) -> None:
+        """/health must remain byte-for-byte identical after /ready is introduced."""
+        response = self.client.get("/health")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(set(response.json().keys()), {"status"})
+
+    @patch("app.api.main.get_collection")
+    def test_ready_all_checks_pass(self, mock_get_collection: MagicMock) -> None:
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "ready")
+        self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertTrue(data["checks"]["chroma"]["ok"])
+        # Never expose the actual key value
+        self.assertNotIn("test-key-value", response.text)
+
+    @patch("app.api.main.get_collection")
+    def test_ready_missing_api_key_returns_503(self, mock_get_collection: MagicMock) -> None:
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "not_ready")
+        self.assertFalse(data["checks"]["gemini_api_key"]["ok"])
+        self.assertTrue(data["checks"]["chroma"]["ok"])
+
+    @patch("app.api.main.get_collection")
+    def test_ready_chroma_unreachable_returns_503(self, mock_get_collection: MagicMock) -> None:
+        mock_get_collection.side_effect = RuntimeError("Could not connect to Chroma")
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "not_ready")
+        self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertFalse(data["checks"]["chroma"]["ok"])
+        # No raw exception text leaked
+        self.assertNotIn("Could not connect to Chroma", response.text)
+
+    @patch("app.api.main.get_collection")
+    def test_ready_chroma_empty_collection_returns_503(self, mock_get_collection: MagicMock) -> None:
+        mock_empty_collection = MagicMock()
+        mock_empty_collection.count.return_value = 0
+        mock_get_collection.return_value = mock_empty_collection
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "not_ready")
+        self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertFalse(data["checks"]["chroma"]["ok"])
+
+    @patch("google.genai.Client")
+    @patch("app.api.main.get_collection")
+    def test_ready_never_calls_gemini(
+        self, mock_get_collection: MagicMock, mock_genai_client: MagicMock
+    ) -> None:
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+            # Exercise both the ready and not-ready branches.
+            self.client.get("/ready")
+            with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+                self.client.get("/ready")
+
+        mock_genai_client.assert_not_called()
 
     def test_oversized_query_rejected(self) -> None:
         response = self.client.post("/chat", json={"query": "A" * 1500})

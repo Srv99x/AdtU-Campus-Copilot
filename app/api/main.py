@@ -5,6 +5,7 @@ Provides a clean HTTP interface over the canonical RAG orchestration pipeline.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -127,6 +128,52 @@ class ChatResponse(BaseModel):
 def health_check() -> dict:
     """Lightweight health check without touching Chroma or Gemini."""
     return {"status": "ok"}
+
+
+@app.get("/ready")
+def readiness_check() -> JSONResponse:
+    """Dependency-aware readiness check.
+
+    Verifies (without ever calling Gemini or generating an embedding):
+      - GEMINI_API_KEY is present and non-blank in the environment.
+      - The canonical runtime Chroma collection (via the existing
+        get_collection() singleton/config) is reachable and non-empty.
+
+    Never exposes the API key value itself, only presence/absence.
+    """
+    checks: dict[str, dict[str, Any]] = {}
+    all_ok = True
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    key_present = bool(api_key and api_key.strip())
+    checks["gemini_api_key"] = {
+        "ok": key_present,
+        "detail": "present" if key_present else "missing or blank",
+    }
+    if not key_present:
+        all_ok = False
+
+    try:
+        collection = get_collection()
+        count = collection.count()
+        if count > 0:
+            checks["chroma"] = {
+                "ok": True,
+                "detail": f"collection accessible with {count} records",
+            }
+        else:
+            checks["chroma"] = {"ok": False, "detail": "collection is empty"}
+            all_ok = False
+    except Exception as e:
+        logger.error(f"Readiness check: Chroma collection unreachable: {e}")
+        checks["chroma"] = {"ok": False, "detail": "collection unreachable"}
+        all_ok = False
+
+    status_code = status.HTTP_200_OK if all_ok else status.HTTP_503_SERVICE_UNAVAILABLE
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "ready" if all_ok else "not_ready", "checks": checks},
+    )
 
 
 @app.post("/chat", response_model=ChatResponse)
