@@ -1,0 +1,40 @@
+AdtU Campus Copilot — Intent Classifier Evaluation
+============================================================
+Model   : C:\Users\SOURAV\Desktop\AdtU-Campus-Copilot\app\classifier\model\intent_classifier.pkl
+Held-out: C:\Users\SOURAV\Desktop\AdtU-Campus-Copilot\data\classifier\heldout_queries.csv  (50 queries)
+============================================================
+
+Accuracy          : 0.8800
+Macro Precision   : 0.8947
+Macro Recall      : 0.8798
+Macro F1 (HEADLINE): 0.8775
+
+Per-class metrics:
+  Label                 Precision     Recall         F1
+  ------------------------------------------------------
+  admissions               0.8125     1.0000     0.8966
+  fees                     0.9091     0.7692     0.8333
+  facilities               0.8571     1.0000     0.9231
+  out_of_scope             1.0000     0.7500     0.8571
+
+Full sklearn classification_report:
+------------------------------------------------------------
+              precision    recall  f1-score   support
+
+  admissions     0.8125    1.0000    0.8966        13
+        fees     0.9091    0.7692    0.8333        13
+  facilities     0.8571    1.0000    0.9231        12
+out_of_scope     1.0000    0.7500    0.8571        12
+
+    accuracy                         0.8800        50
+   macro avg     0.8947    0.8798    0.8775        50
+weighted avg     0.8933    0.8800    0.8770        50
+
+
+Confusion Matrix (rows=true, cols=predicted):
+------------------------------------------------------------
+Labels: ['admissions', 'fees', 'facilities', 'out_of_scope']
+[[13  0  0  0]
+ [ 2 10  1  0]
+ [ 0  0 12  0]
+ [ 1  1  1  9]]

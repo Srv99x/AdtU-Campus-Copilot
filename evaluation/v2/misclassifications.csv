@@ -1,0 +1,7 @@
+query,true_label,predicted_label
+late fine grace period kitne din ka hai,fees,facilities
+admission k time kitna pay karna hoga,fees,admissions
+seat blocking amount kya hai,fees,admissions
+virat kohli total centuries,out_of_scope,fees
+assam ki sabse unchi choti,out_of_scope,facilities
+kal nifty banknifty kya hoga,out_of_scope,admissions
