@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 from app.database.tickets import (
     Ticket,
@@ -14,7 +15,25 @@ from app.database.tickets import (
     get_ticket,
     initialize_database,
     list_tickets,
+    _MAX_LOCK_RETRIES,
 )
+
+
+def _mock_connection(execute_effects: list) -> MagicMock:
+    """Build a MagicMock standing in for a sqlite3.Connection.
+
+    - `with conn:` behaves like the real context manager: __exit__ never
+      suppresses an exception raised inside the block (a bare MagicMock's
+      auto-generated __exit__ return value is truthy, which would silently
+      swallow the OperationalError instead of letting it propagate).
+    - conn.execute(...) raises/returns according to `execute_effects` in
+      order (mirrors unittest.mock's own `side_effect` list semantics).
+    """
+    conn = MagicMock(spec=sqlite3.Connection)
+    conn.__enter__ = MagicMock(return_value=conn)
+    conn.__exit__ = MagicMock(return_value=False)
+    conn.execute = MagicMock(side_effect=execute_effects)
+    return conn
 
 
 class TestTicketsDatabase(unittest.TestCase):
@@ -118,6 +137,100 @@ class TestTicketsDatabase(unittest.TestCase):
         t1 = create_ticket(self.db_path, "Q1", "admissions", "source1")
         t2 = create_ticket(self.db_path, "Q2", "fees", "source2")
         self.assertNotEqual(t1.ticket_id, t2.ticket_id)
+
+    @patch("app.database.tickets.time.sleep")
+    def test_normal_creation_succeeds_without_retry(self, mock_sleep: MagicMock) -> None:
+        """Happy path against the real temp DB: retry machinery is a no-op."""
+        ticket = create_ticket(self.db_path, "Q", "admissions", "source1")
+        self.assertEqual(ticket.status, "open")
+        mock_sleep.assert_not_called()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_database_locked_once_then_succeeds(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        locked_conn = _mock_connection([sqlite3.OperationalError("database is locked")])
+        ok_conn = _mock_connection([None])
+        mock_get_connection.side_effect = [locked_conn, ok_conn]
+
+        ticket = create_ticket(self.db_path, "Q", "admissions", "source1")
+
+        self.assertIsInstance(ticket, Ticket)
+        self.assertEqual(ticket.status, "open")
+        self.assertEqual(mock_get_connection.call_count, 2)
+        mock_sleep.assert_called_once()
+        locked_conn.close.assert_called_once()
+        ok_conn.close.assert_called_once()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_database_busy_once_then_succeeds(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        busy_conn = _mock_connection([sqlite3.OperationalError("database is busy")])
+        ok_conn = _mock_connection([None])
+        mock_get_connection.side_effect = [busy_conn, ok_conn]
+
+        ticket = create_ticket(self.db_path, "Q", "admissions", "source1")
+
+        self.assertIsInstance(ticket, Ticket)
+        self.assertEqual(mock_get_connection.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_retries_stop_after_max_and_raises_final_lock_error(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        # Provide more locked connections than could ever be consumed, so a
+        # bug that retries unboundedly fails loudly (StopIteration) rather
+        # than hanging or silently passing.
+        conns = [
+            _mock_connection([sqlite3.OperationalError("database is locked")])
+            for _ in range(_MAX_LOCK_RETRIES + 5)
+        ]
+        mock_get_connection.side_effect = conns
+
+        with self.assertRaises(sqlite3.OperationalError):
+            create_ticket(self.db_path, "Q", "admissions", "source1")
+
+        # 1 initial attempt + _MAX_LOCK_RETRIES retries
+        self.assertEqual(mock_get_connection.call_count, _MAX_LOCK_RETRIES + 1)
+        self.assertEqual(mock_sleep.call_count, _MAX_LOCK_RETRIES)
+        for conn in conns[: _MAX_LOCK_RETRIES + 1]:
+            conn.close.assert_called_once()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_non_transient_operational_error_is_not_retried(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        bad_conn = _mock_connection([sqlite3.OperationalError("no such table: tickets")])
+        mock_get_connection.return_value = bad_conn
+
+        with self.assertRaises(sqlite3.OperationalError):
+            create_ticket(self.db_path, "Q", "admissions", "source1")
+
+        mock_get_connection.assert_called_once()
+        mock_sleep.assert_not_called()
+        bad_conn.close.assert_called_once()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_constraint_violation_is_not_retried(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        """IntegrityError is a sibling of OperationalError, not a subclass —
+        confirms it is never caught by the lock-retry except clause at all."""
+        integrity_conn = _mock_connection([sqlite3.IntegrityError("UNIQUE constraint failed")])
+        mock_get_connection.return_value = integrity_conn
+
+        with self.assertRaises(sqlite3.IntegrityError):
+            create_ticket(self.db_path, "Q", "admissions", "source1")
+
+        mock_get_connection.assert_called_once()
+        mock_sleep.assert_not_called()
 
     def test_persistence_across_connections(self) -> None:
         """Data persists when a new connection is established."""
