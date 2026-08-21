@@ -41,7 +41,7 @@
 | 0.440 | 21 | 0 | 14 | 0 | 7 | 0 | 1.000 | 0.000 | 0.000 |
 | **0.220** | **10** | **11** | **0** | **14** | **0** | **7** | **0.000** | **0.524** | **0.762** | **<-- RECOMMENDED** |
 
-## Recommended Threshold
+## Calibration-Recommended Threshold
 
 **theta_d = 0.220** (on `distinct_parent_top3_mean_distance`)
 
@@ -63,6 +63,27 @@ Selected as the **lowest threshold achieving FAR = 0** across the calibration se
 This means zero knowledge-gap queries are falsely accepted as high-confidence.
 A moderate FRR is accepted because over-escalation to SQLite is preferable to hallucinated answers.
 Boundary queries are intentionally expected to escalate.
+
+### Runtime Reconciliation Note
+
+The frozen runtime threshold is **`GATE_THETA_D = 0.275`** (`app/rag/pipeline.py`),
+not the 0.220 calibration-recommended value above. 0.220 was this calibration
+study's own FAR=0 recommendation, derived solely from the 50-query
+calibration set described in this report; it was never applied to the
+runtime. The runtime deliberately uses 0.275 as a frozen precision/recall
+trade-off, accepting a non-zero false-accept rate in exchange for fewer
+over-escalations than 0.220 would produce. The closest calibration row
+actually measured near that trade-off, `theta=0.280`, shows **FAR=0.286**
+in the table above — this document does not claim 0.275 itself was
+empirically measured or optimal; it is recorded here only as the frozen
+value currently in force.
+
+Operators must **NOT** change `GATE_THETA_D` merely to reconcile it with
+this report's 0.220 recommendation. The runtime value is frozen: see
+`AGENTS.md` ("Preserve the locked application architecture") and the
+"FROZEN — do not change" comment directly above `GATE_THETA_D` in
+`app/rag/pipeline.py`. Any change to the gate threshold requires the same
+explicit approval as any other locked-architecture change.
 
 ### Compound Gate Logic (NOT YET IMPLEMENTED in pipeline.py)
 
