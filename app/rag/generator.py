@@ -120,6 +120,51 @@ def extract_citations(chunks: list[RetrievedChunk]) -> list[Citation]:
     return citations
 
 
+def format_citation_reference(
+    *,
+    chunk_id: str,
+    parent_chunk_id: str | None,
+    source_url: str,
+    section: str,
+    source_type: str | None = None,
+) -> str:
+    """Return a human-readable citation reference for display (Markdown-safe).
+
+    - When *source_url* is present and non-blank, returns the existing
+      clickable "[section](url)" form, unchanged.
+    - When *source_url* is missing/blank (e.g. all current V2 chunks), NO
+      URL is fabricated. Instead returns a clear, non-clickable identity
+      built only from metadata already present on the citation (section,
+      chunk_id, source_type).
+    - Derived-child lineage (parent_chunk_id) is appended in both cases,
+      when present, so citation provenance is never lost.
+
+    Keyword arguments mirror the field names on both the domain `Citation`
+    dataclass and the API's `CitationModel`/JSON response, so callers on
+    either side of the FastAPI boundary can invoke this with `**citation`
+    (a dict) or explicit fields from a `Citation` instance without any
+    change to either contract.
+    """
+    section_label = section.strip() if section and section.strip() else chunk_id
+    clean_url = source_url.strip() if source_url else ""
+
+    if clean_url:
+        line = f"[{section_label}]({clean_url})"
+    else:
+        if section_label != chunk_id:
+            identity = f"{section_label} (chunk `{chunk_id}`)"
+        else:
+            identity = f"chunk `{chunk_id}`"
+        if source_type:
+            identity += f" — {source_type}"
+        line = f"{identity} — source link unavailable"
+
+    if parent_chunk_id:
+        line += f" (via `{parent_chunk_id}`)"
+
+    return line
+
+
 def generate_grounded_answer(query: str, evidence: list[RetrievedChunk]) -> GenerationResult:
     """
     Generate an answer using ONLY the supplied evidence.

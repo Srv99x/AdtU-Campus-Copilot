@@ -3,8 +3,17 @@ AdtU Campus Copilot — Streamlit MVP
 A lightweight UI wrapping the FastAPI orchestration backend.
 """
 import os
+import sys
+from pathlib import Path
+
 import requests
 import streamlit as st
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from app.rag.generator import format_citation_reference
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -98,10 +107,7 @@ for msg in st.session_state.messages:
             if citations:
                 with st.expander("Sources"):
                     for c in citations:
-                        line = f"- [{c['section']}]({c['source_url']})"
-                        if c.get("parent_chunk_id"):
-                            line += f" (via `{c['parent_chunk_id']}`)"
-                        st.markdown(line)
+                        st.markdown(f"- {format_citation_reference(**c)}")
 
 # Chat Input
 if prompt := st.chat_input("Ask me about AdtU admissions, fees, or facilities..."):
@@ -142,10 +148,7 @@ if prompt := st.chat_input("Ask me about AdtU admissions, fees, or facilities...
             if metadata["citations"]:
                 with st.expander("Sources"):
                     for c in metadata["citations"]:
-                        line = f"- [{c['section']}]({c['source_url']})"
-                        if c.get("parent_chunk_id"):
-                            line += f" (via `{c['parent_chunk_id']}`)"
-                        st.markdown(line)
+                        st.markdown(f"- {format_citation_reference(**c)}")
 
         elif status == "out_of_scope":
             msg = "This assistant only handles AdtU-related queries (admissions, fees, facilities). Please rephrase or ask a campus-related question."
