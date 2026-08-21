@@ -7,9 +7,11 @@ from __future__ import annotations
 import sqlite3
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Bounded retry/backoff for transient SQLite lock contention on ticket
@@ -28,6 +30,18 @@ _LOCK_RETRY_BASE_DELAY_SECONDS: float = 0.05  # 50ms, 100ms, 200ms
 # not match and is never retried.
 _TRANSIENT_LOCK_MARKERS: tuple[str, ...] = ("database is locked", "database is busy")
 
+# ---------------------------------------------------------------------------
+# Ticket status model (Phase 7C) — deliberately minimal.
+#
+# The only transition the product performs is open -> resolved. These are the
+# only two values this module will ever WRITE; the column itself is unchanged
+# (no schema migration, no CHECK constraint added), so historical rows written
+# by anything else are still read back verbatim.
+# ---------------------------------------------------------------------------
+TICKET_STATUS_OPEN: str = "open"
+TICKET_STATUS_RESOLVED: str = "resolved"
+VALID_TICKET_STATUSES: frozenset[str] = frozenset({TICKET_STATUS_OPEN, TICKET_STATUS_RESOLVED})
+
 
 def _is_transient_lock_error(exc: sqlite3.OperationalError) -> bool:
     """True iff *exc* is a transient SQLite lock/busy error that is safe to retry."""
@@ -38,6 +52,34 @@ def _is_transient_lock_error(exc: sqlite3.OperationalError) -> bool:
 def _lock_retry_delay_seconds(attempt: int) -> float:
     """Deterministic bounded backoff for retry *attempt* (1-indexed)."""
     return _LOCK_RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1))
+
+
+def _run_write_with_lock_retry(db_path: Path | str, operation: Callable[[sqlite3.Connection], Any]) -> Any:
+    """Run *operation* inside a transaction, retrying transient lock contention.
+
+    Opens a fresh connection per attempt, runs *operation(conn)* inside
+    `with conn:` (so SQLite commits on success and rolls back on error), and
+    always closes the connection. A transient "database is locked"/"database
+    is busy" `OperationalError` is retried up to _MAX_LOCK_RETRIES times with
+    the bounded backoff above (M4). Every other exception -- including a
+    non-transient OperationalError, an IntegrityError, or a ValueError raised
+    by *operation* itself -- propagates immediately on the first attempt.
+    """
+    attempt = 0
+    while True:
+        conn: sqlite3.Connection | None = None
+        try:
+            conn = _get_connection(db_path)
+            with conn:
+                return operation(conn)
+        except sqlite3.OperationalError as exc:
+            if attempt >= _MAX_LOCK_RETRIES or not _is_transient_lock_error(exc):
+                raise
+            attempt += 1
+            time.sleep(_lock_retry_delay_seconds(attempt))
+        finally:
+            if conn is not None:
+                conn.close()
 
 
 @dataclass
@@ -113,31 +155,19 @@ def create_ticket(
 
     ticket_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-    status = "open"
+    status = TICKET_STATUS_OPEN
 
-    attempt = 0
-    while True:
-        conn: sqlite3.Connection | None = None
-        try:
-            conn = _get_connection(db_path)
-            with conn:
-                conn.execute(
-                    """
-                    INSERT INTO tickets (
-                        ticket_id, query, predicted_intent, status, created_at, source, user_metadata
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (ticket_id, query, predicted_intent, status, created_at, source, user_metadata)
-                )
-            break
-        except sqlite3.OperationalError as exc:
-            if attempt >= _MAX_LOCK_RETRIES or not _is_transient_lock_error(exc):
-                raise
-            attempt += 1
-            time.sleep(_lock_retry_delay_seconds(attempt))
-        finally:
-            if conn is not None:
-                conn.close()
+    def _insert(conn: sqlite3.Connection) -> None:
+        conn.execute(
+            """
+            INSERT INTO tickets (
+                ticket_id, query, predicted_intent, status, created_at, source, user_metadata
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (ticket_id, query, predicted_intent, status, created_at, source, user_metadata)
+        )
+
+    _run_write_with_lock_retry(db_path, _insert)
 
     return Ticket(
         ticket_id=ticket_id,
@@ -173,6 +203,81 @@ def get_ticket(db_path: Path | str, ticket_id: str) -> Ticket | None:
         source=row["source"],
         user_metadata=row["user_metadata"]
     )
+
+
+def update_ticket_status(
+    db_path: Path | str,
+    ticket_id: str,
+    status: str,
+) -> Ticket | None:
+    """Set an existing ticket's `status`, returning the updated Ticket.
+
+    Args:
+        db_path: Path to the SQLite database.
+        ticket_id: The UUID of the ticket to update.
+        status: The target status. Must be one of VALID_TICKET_STATUSES.
+
+    Returns:
+        The updated Ticket, or None if no ticket with *ticket_id* exists
+        (mirroring get_ticket()'s None-for-not-found contract rather than
+        raising, so callers handle "missing" the same way throughout).
+
+    Raises:
+        ValueError: if *status* is not a valid status, or if the requested
+            change would re-open an already-resolved ticket (resolved ->
+            open is refused rather than silently applied).
+
+    Behavior notes:
+        - Idempotent: setting a ticket to the status it already has is a
+          no-op that returns the ticket unchanged, performing no write. This
+          matches the endpoint's HTTP semantics -- a staff member clicking
+          "Resolve" twice, or two staff resolving the same ticket, both get
+          a plain success rather than a spurious error.
+        - Only the `status` column is written. ticket_id, query,
+          predicted_intent, created_at, source, and user_metadata are never
+          touched, and no row is inserted or deleted.
+        - The read and the write happen in a single transaction, and the
+          whole operation reuses the same bounded lock retry as ticket
+          creation (M4).
+    """
+    if status not in VALID_TICKET_STATUSES:
+        raise ValueError(
+            f"Invalid ticket status {status!r}. "
+            f"Expected one of {sorted(VALID_TICKET_STATUSES)}."
+        )
+
+    def _update(conn: sqlite3.Connection) -> Ticket | None:
+        row = conn.execute(
+            "SELECT * FROM tickets WHERE ticket_id = ?",
+            (ticket_id,)
+        ).fetchone()
+
+        if not row:
+            return None
+
+        current_status = row["status"]
+        if current_status != status:
+            if current_status == TICKET_STATUS_RESOLVED:
+                raise ValueError(
+                    f"Ticket {ticket_id} is already resolved and cannot be "
+                    f"changed to {status!r}."
+                )
+            conn.execute(
+                "UPDATE tickets SET status = ? WHERE ticket_id = ?",
+                (status, ticket_id)
+            )
+
+        return Ticket(
+            ticket_id=row["ticket_id"],
+            query=row["query"],
+            predicted_intent=row["predicted_intent"],
+            status=status,
+            created_at=row["created_at"],
+            source=row["source"],
+            user_metadata=row["user_metadata"]
+        )
+
+    return _run_write_with_lock_retry(db_path, _update)
 
 
 def list_tickets(db_path: Path | str, status: str | None = None) -> list[Ticket]:

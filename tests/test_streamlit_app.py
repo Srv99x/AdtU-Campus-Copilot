@@ -463,5 +463,244 @@ class TestTrustAndEvidencePanel(unittest.TestCase):
         self.assertIn("🔎 Why this answer?", panel_labels)
 
 
+class TestStaffAdminView(unittest.TestCase):
+    """Phase 7C: the sidebar staff/admin ticket queue and Resolve action.
+
+    Every ticket field asserted here comes from the mocked ticket API
+    payload -- the panel must never invent staff names, resolution
+    timestamps, priority, or SLA data, none of which exist in the model.
+    """
+
+    OPEN_TICKET = {
+        "ticket_id": "tk-open-1",
+        "query": "What is the WiFi password for the boys hostel?",
+        "predicted_intent": "facilities",
+        "status": "open",
+        "created_at": "2026-08-21T10:00:00Z",
+        "source": "stage_2_insufficient_evidence",
+        "user_metadata": None,
+    }
+
+    def setUp(self) -> None:
+        self.get_patcher = patch("requests.get")
+        self.post_patcher = patch("requests.post")
+        self.patch_patcher = patch("requests.patch")
+        self.mock_get = self.get_patcher.start()
+        self.mock_post = self.post_patcher.start()
+        self.mock_patch = self.patch_patcher.start()
+        self.addCleanup(self.get_patcher.stop)
+        self.addCleanup(self.post_patcher.stop)
+        self.addCleanup(self.patch_patcher.stop)
+
+        # Ticket list served to the admin panel; individual tests mutate it.
+        self.tickets = [dict(self.OPEN_TICKET)]
+
+        def _get_side_effect(url: str, **kwargs):
+            if url.endswith("/health"):
+                return _mock_response({"status": "ok"})
+            if url.endswith("/tickets"):
+                return _mock_response(self.tickets)
+            return _mock_response({})
+
+        self.mock_get.side_effect = _get_side_effect
+        self.mock_patch.return_value = _mock_response(
+            {**self.OPEN_TICKET, "status": "resolved"}
+        )
+
+    def _load_admin(self) -> AppTest:
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        self.assertFalse(at.exception)
+        load_button = next(b for b in at.button if b.key == "admin_load_tickets")
+        load_button.click().run(timeout=RUN_TIMEOUT)
+        self.assertFalse(at.exception)
+        return at
+
+    def test_admin_section_renders(self) -> None:
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        sidebar_markdown = [m.value for m in at.sidebar.markdown]
+        self.assertTrue(any("Staff / Admin" in m for m in sidebar_markdown))
+        self.assertTrue(any(b.key == "admin_load_tickets" for b in at.sidebar.button))
+
+    def test_open_ticket_is_displayed_with_real_fields(self) -> None:
+        at = self._load_admin()
+
+        sidebar_markdown = [m.value for m in at.sidebar.markdown]
+        sidebar_captions = [c.value for c in at.sidebar.caption]
+
+        # Status is clearly distinguished as OPEN.
+        self.assertTrue(any("OPEN" in m for m in sidebar_markdown))
+        # Real ticket fields from the API payload.
+        self.assertTrue(any(self.OPEN_TICKET["ticket_id"] in c for c in sidebar_captions))
+        self.assertTrue(any(self.OPEN_TICKET["query"] in c for c in sidebar_captions))
+        self.assertTrue(any(self.OPEN_TICKET["predicted_intent"] in c for c in sidebar_captions))
+        self.assertTrue(any(self.OPEN_TICKET["created_at"] in c for c in sidebar_captions))
+
+    def test_open_ticket_offers_resolve_action(self) -> None:
+        at = self._load_admin()
+        self.assertTrue(any(b.key == f"admin_resolve_{self.OPEN_TICKET['ticket_id']}" for b in at.button))
+
+    def test_resolved_ticket_is_shown_without_resolve_action(self) -> None:
+        self.tickets = [{**self.OPEN_TICKET, "status": "resolved"}]
+
+        at = self._load_admin()
+
+        sidebar_markdown = [m.value for m in at.sidebar.markdown]
+        self.assertTrue(any("RESOLVED" in m for m in sidebar_markdown))
+        # A resolved ticket cannot be re-opened or re-resolved from the UI.
+        self.assertFalse(any(b.key.startswith("admin_resolve_") for b in at.button))
+
+    def test_resolve_action_sends_correct_patch_request(self) -> None:
+        at = self._load_admin()
+        resolve_button = next(b for b in at.button if b.key.startswith("admin_resolve_"))
+
+        resolve_button.click().run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        self.mock_patch.assert_called_once()
+        called_url = self.mock_patch.call_args.args[0]
+        self.assertTrue(called_url.endswith(f"/tickets/{self.OPEN_TICKET['ticket_id']}"))
+        self.assertEqual(self.mock_patch.call_args.kwargs["json"], {"status": "resolved"})
+
+    def test_successful_resolution_refreshes_displayed_status(self) -> None:
+        at = self._load_admin()
+        resolve_button = next(b for b in at.button if b.key.startswith("admin_resolve_"))
+
+        # Backend now reports the ticket as resolved on the refresh GET.
+        self.tickets = [{**self.OPEN_TICKET, "status": "resolved"}]
+        resolve_button.click().run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        sidebar_markdown = [m.value for m in at.sidebar.markdown]
+        self.assertTrue(any("RESOLVED" in m for m in sidebar_markdown))
+        self.assertFalse(any("OPEN" in m for m in sidebar_markdown))
+        # Success feedback is shown to the operator.
+        self.assertTrue(any("resolved" in s.value.lower() for s in at.sidebar.success))
+
+    def test_resolve_api_failure_is_displayed_safely(self) -> None:
+        at = self._load_admin()
+        resolve_button = next(b for b in at.button if b.key.startswith("admin_resolve_"))
+
+        self.mock_patch.return_value = _mock_response(
+            {"detail": "Could not update ticket."}, status_code=500
+        )
+        resolve_button.click().run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        sidebar_errors = [e.value for e in at.sidebar.error]
+        self.assertTrue(any("Backend internal error" in e for e in sidebar_errors))
+
+    def test_ticket_load_failure_is_displayed_safely(self) -> None:
+        import requests as _requests
+
+        def _failing_get(url: str, **kwargs):
+            if url.endswith("/health"):
+                return _mock_response({"status": "ok"})
+            raise _requests.exceptions.ConnectionError("connection refused")
+
+        self.mock_get.side_effect = _failing_get
+
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        next(b for b in at.button if b.key == "admin_load_tickets").click().run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        sidebar_errors = [e.value for e in at.sidebar.error]
+        self.assertTrue(any("unreachable" in e.lower() for e in sidebar_errors))
+        # The raw exception text is never surfaced.
+        self.assertFalse(any("connection refused" in e for e in sidebar_errors))
+
+    def test_empty_ticket_queue_is_not_fabricated(self) -> None:
+        self.tickets = []
+
+        at = self._load_admin()
+
+        sidebar_captions = [c.value for c in at.sidebar.caption]
+        self.assertTrue(any("No escalation tickets yet" in c for c in sidebar_captions))
+        self.assertFalse(any(b.key.startswith("admin_resolve_") for b in at.button))
+
+    def test_student_chat_still_works_with_admin_panel(self) -> None:
+        self.mock_post.return_value = _mock_response(
+            {
+                "status": "answered",
+                "intent": "fees",
+                "answer": "Student-facing answer.",
+                "citations": [],
+                "confidence_status": "high",
+                "ticket_id": None,
+                "reason": "ok",
+            }
+        )
+
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        at.chat_input[0].set_value("What is the hostel fee?").run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        self.assertEqual(
+            self.mock_post.call_args.kwargs["json"]["query"], "What is the hostel fee?"
+        )
+        assistant_texts = [
+            m.value for cm in at.chat_message if cm.name == "assistant" for m in cm.markdown
+        ]
+        self.assertIn("Student-facing answer.", assistant_texts)
+
+    def test_guided_demo_mode_still_works_with_admin_panel(self) -> None:
+        self.mock_post.return_value = _mock_response(
+            {
+                "status": "answered",
+                "intent": "admissions",
+                "answer": "Demo answer.",
+                "citations": [],
+                "confidence_status": "high",
+                "ticket_id": None,
+                "reason": "ok",
+            }
+        )
+
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        next(b for b in at.button if b.label == DEMO_SCENARIOS[0]["label"]).click().run(
+            timeout=RUN_TIMEOUT
+        )
+
+        self.assertFalse(at.exception)
+        self.assertEqual(
+            self.mock_post.call_args.kwargs["json"]["query"], DEMO_SCENARIOS[0]["query"]
+        )
+
+    def test_trust_evidence_panel_still_works_with_admin_panel(self) -> None:
+        self.mock_post.return_value = _mock_response(
+            {
+                "status": "answered",
+                "intent": "fees",
+                "answer": "Grounded answer.",
+                "citations": [
+                    {
+                        "chunk_id": "c1",
+                        "parent_chunk_id": None,
+                        "source_url": "https://adtu.in/fees",
+                        "section": "Fees",
+                        "source_type": "html",
+                    }
+                ],
+                "confidence_status": "high",
+                "ticket_id": None,
+                "reason": "dp-top3-mean=0.2000 < 0.275",
+            }
+        )
+
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        at.chat_input[0].set_value("Total fee structure for BCA").run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        panel = next(e for e in at.expander if e.label == "🔎 Why this answer?")
+        self.assertIn("- [Fees](https://adtu.in/fees)", [m.value for m in panel.markdown])
+
+
 if __name__ == "__main__":
     unittest.main()

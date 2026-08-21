@@ -231,20 +231,140 @@ class TestFastAPIWrapper(unittest.TestCase):
     def test_ticket_listing_and_retrieval(self) -> None:
         # Create directly in DB
         ticket = create_ticket(self.db_path, "Q", "fees", "source")
-        
+
         # Test GET /tickets
         list_response = self.client.get("/tickets")
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(len(list_response.json()), 1)
-        
+
         # Test GET /tickets/{id}
         get_response = self.client.get(f"/tickets/{ticket.ticket_id}")
         self.assertEqual(get_response.status_code, 200)
         self.assertEqual(get_response.json()["ticket_id"], ticket.ticket_id)
-        
+
         # Test 404
         bad_response = self.client.get("/tickets/not-a-ticket")
         self.assertEqual(bad_response.status_code, 404)
+
+    # -----------------------------------------------------------------
+    # PATCH /tickets/{ticket_id} — Phase 7C (additive endpoint)
+    # -----------------------------------------------------------------
+
+    def test_patch_ticket_resolves_open_ticket(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+
+        response = self.client.patch(
+            f"/tickets/{ticket.ticket_id}", json={"status": "resolved"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["ticket_id"], ticket.ticket_id)
+        self.assertEqual(data["status"], "resolved")
+        # Unrelated fields survive the update.
+        self.assertEqual(data["query"], "Q")
+        self.assertEqual(data["predicted_intent"], "fees")
+        self.assertEqual(data["created_at"], ticket.created_at)
+        self.assertEqual(data["source"], "stage_1_low")
+
+    def test_patch_ticket_is_visible_through_existing_get_endpoints(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        self.client.patch(f"/tickets/{ticket.ticket_id}", json={"status": "resolved"})
+
+        get_response = self.client.get(f"/tickets/{ticket.ticket_id}")
+        self.assertEqual(get_response.json()["status"], "resolved")
+
+        open_list = self.client.get("/tickets", params={"status_filter": "open"})
+        self.assertEqual(open_list.json(), [])
+
+        resolved_list = self.client.get("/tickets", params={"status_filter": "resolved"})
+        self.assertEqual(len(resolved_list.json()), 1)
+
+    def test_patch_unknown_ticket_returns_404(self) -> None:
+        response = self.client.patch("/tickets/not-a-ticket", json={"status": "resolved"})
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json()["detail"], "Ticket not found")
+
+    def test_patch_invalid_status_is_rejected(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+
+        # "open" is deliberately NOT exposed -- a resolved ticket must not be
+        # re-openable through the API -- alongside statuses outside the model.
+        for bad_status in ("open", "closed", "in_progress", "", None, 123):
+            with self.subTest(status=bad_status):
+                response = self.client.patch(
+                    f"/tickets/{ticket.ticket_id}", json={"status": bad_status}
+                )
+                self.assertEqual(response.status_code, 422)
+
+        # Nothing was mutated by any rejected call.
+        self.assertEqual(
+            self.client.get(f"/tickets/{ticket.ticket_id}").json()["status"], "open"
+        )
+
+    def test_patch_malformed_payload_is_rejected(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+
+        for payload in ({}, {"stat": "resolved"}, {"status": ["resolved"]}):
+            with self.subTest(payload=payload):
+                response = self.client.patch(f"/tickets/{ticket.ticket_id}", json=payload)
+                self.assertEqual(response.status_code, 422)
+
+    def test_patch_already_resolved_ticket_is_idempotent(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+
+        first = self.client.patch(f"/tickets/{ticket.ticket_id}", json={"status": "resolved"})
+        second = self.client.patch(f"/tickets/{ticket.ticket_id}", json={"status": "resolved"})
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(second.json()["status"], "resolved")
+        # No duplicate ticket rows were produced.
+        self.assertEqual(len(self.client.get("/tickets").json()), 1)
+
+    @patch("app.api.main.update_ticket_status")
+    def test_patch_database_failure_does_not_leak_details(self, mock_update) -> None:
+        mock_update.side_effect = RuntimeError("disk I/O error: /secret/path/escalation.db")
+
+        response = self.client.patch("/tickets/tk-1", json={"status": "resolved"})
+
+        self.assertEqual(response.status_code, 500)
+        self.assertNotIn("disk I/O error", response.text)
+        self.assertNotIn("/secret/path", response.text)
+        self.assertEqual(response.json()["detail"], "Could not update ticket.")
+
+    @patch("app.api.main.update_ticket_status")
+    def test_patch_invalid_transition_returns_400(self, mock_update) -> None:
+        """Not reachable through the current request model, but the endpoint
+        still translates a data-layer ValueError into a clean 400."""
+        mock_update.side_effect = ValueError("Ticket tk-1 is already resolved and cannot be changed to 'open'.")
+
+        response = self.client.patch("/tickets/tk-1", json={"status": "resolved"})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["detail"], "Invalid ticket status transition.")
+
+    def test_existing_endpoints_unchanged_by_patch_addition(self) -> None:
+        """Backward-compatibility guard for the pre-Phase-7C contracts."""
+        health = self.client.get("/health")
+        self.assertEqual(health.status_code, 200)
+        self.assertEqual(health.json(), {"status": "ok"})
+
+        ticket = create_ticket(self.db_path, "Q", "fees", "source")
+
+        listing = self.client.get("/tickets")
+        self.assertEqual(listing.status_code, 200)
+        self.assertEqual(
+            set(listing.json()[0].keys()),
+            {"ticket_id", "query", "predicted_intent", "status", "created_at", "source", "user_metadata"},
+        )
+
+        single = self.client.get(f"/tickets/{ticket.ticket_id}")
+        self.assertEqual(single.status_code, 200)
+        self.assertEqual(set(single.json().keys()), set(listing.json()[0].keys()))
+
+        # GET on an id still 404s; PATCH did not shadow the GET route.
+        self.assertEqual(self.client.get("/tickets/nope").status_code, 404)
 
 
 if __name__ == "__main__":

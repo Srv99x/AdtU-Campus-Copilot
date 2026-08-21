@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import chromadb
 from fastapi import FastAPI, Depends, HTTPException, Request, status
@@ -22,7 +22,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.rag.pipeline import run_rag_pipeline, RagResult, Citation, GateMetrics, RetrievedChunk
-from app.database.tickets import initialize_database, get_ticket, list_tickets, Ticket
+from app.database.tickets import (
+    initialize_database,
+    get_ticket,
+    list_tickets,
+    update_ticket_status,
+    Ticket,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -118,6 +124,16 @@ class ChatResponse(BaseModel):
     confidence_status: str | None
     ticket_id: str | None
     reason: str
+
+class TicketStatusUpdateRequest(BaseModel):
+    """Body for PATCH /tickets/{ticket_id} (Phase 7C).
+
+    Only the open -> resolved transition is exposed. `Literal["resolved"]`
+    means any other value -- including "open", so a resolved ticket can never
+    be re-opened through the API -- is rejected by FastAPI's own validation
+    as a 422 before any database access happens.
+    """
+    status: Literal["resolved"]
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +250,41 @@ def list_tickets_endpoint(
     """List tickets, optionally filtered by status."""
     tickets = list_tickets(db_path, status=status_filter)
     return [t.__dict__ for t in tickets]
+
+
+@app.patch("/tickets/{ticket_id}")
+def update_ticket_endpoint(
+    ticket_id: str,
+    request: TicketStatusUpdateRequest,
+    db_path: Path = Depends(get_db_path)
+) -> dict:
+    """Resolve an escalated ticket (staff action).
+
+    Additive endpoint (Phase 7C); no existing endpoint or response contract
+    is altered. Returns the updated ticket in the same shape as
+    GET /tickets/{ticket_id}. Resolving an already-resolved ticket is
+    idempotent and succeeds. Raw database errors are never surfaced.
+    """
+    try:
+        ticket = update_ticket_status(db_path, ticket_id, request.status)
+    except ValueError as e:
+        # Invalid status transition (e.g. re-opening a resolved ticket).
+        # Unreachable through this endpoint today -- the request model only
+        # permits "resolved" -- but kept so the API stays correct if the
+        # exposed transitions are ever widened.
+        logger.warning(f"Rejected ticket status update for {ticket_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid ticket status transition."
+        )
+    except Exception as e:
+        logger.error(f"Ticket status update failed for {ticket_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not update ticket."
+        )
+
+    if not ticket:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found")
+
+    return ticket.__dict__

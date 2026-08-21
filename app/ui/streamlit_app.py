@@ -55,6 +55,13 @@ DEMO_SCENARIOS: list[dict[str, str]] = [
 ]
 _PENDING_DEMO_QUERY_KEY = "_pending_demo_query"
 
+# ---------------------------------------------------------------------------
+# Staff / Admin view (Phase 7C) — session-state keys.
+# ---------------------------------------------------------------------------
+_ADMIN_TICKETS_KEY = "_admin_tickets"
+_ADMIN_ERROR_KEY = "_admin_error"
+_ADMIN_NOTICE_KEY = "_admin_notice"
+
 st.set_page_config(page_title="AdtU Campus Copilot", layout="centered")
 
 # ---------------------------------------------------------------------------
@@ -95,6 +102,54 @@ def send_chat_query(query: str) -> dict:
         return {"status": "error", "reason": "Backend is unreachable. Please verify the API server is running."}
     except Exception as e:
         return {"status": "error", "reason": "An unexpected network error occurred."}
+
+
+def fetch_tickets() -> dict:
+    """Fetch the escalation ticket list from the backend (Phase 7C).
+
+    Returns {"ok": bool, "tickets": list, "error": str | None}. Network and
+    backend failures are reported, never raised, so the admin panel can show
+    a safe message instead of crashing the page.
+    """
+    try:
+        response = requests.get(f"{API_BASE_URL}/tickets", timeout=TIMEOUT_SEC)
+        if response.status_code >= 500:
+            return {"ok": False, "tickets": [], "error": "Backend internal error while loading tickets."}
+        response.raise_for_status()
+        return {"ok": True, "tickets": response.json(), "error": None}
+    except requests.exceptions.Timeout:
+        return {"ok": False, "tickets": [], "error": "Request timed out while loading tickets."}
+    except requests.exceptions.ConnectionError:
+        return {"ok": False, "tickets": [], "error": "Backend is unreachable. Please verify the API server is running."}
+    except Exception:
+        return {"ok": False, "tickets": [], "error": "An unexpected error occurred while loading tickets."}
+
+
+def resolve_ticket(ticket_id: str) -> dict:
+    """Mark a ticket resolved via the backend PATCH endpoint (Phase 7C).
+
+    Returns {"ok": bool, "ticket": dict | None, "error": str | None}.
+    """
+    try:
+        response = requests.patch(
+            f"{API_BASE_URL}/tickets/{ticket_id}",
+            json={"status": "resolved"},
+            timeout=TIMEOUT_SEC,
+        )
+        if response.status_code == 404:
+            return {"ok": False, "ticket": None, "error": "Ticket not found."}
+        if response.status_code == 422:
+            return {"ok": False, "ticket": None, "error": "Ticket update rejected by server validation."}
+        if response.status_code >= 500:
+            return {"ok": False, "ticket": None, "error": "Backend internal error while resolving the ticket."}
+        response.raise_for_status()
+        return {"ok": True, "ticket": response.json(), "error": None}
+    except requests.exceptions.Timeout:
+        return {"ok": False, "ticket": None, "error": "Request timed out while resolving the ticket."}
+    except requests.exceptions.ConnectionError:
+        return {"ok": False, "ticket": None, "error": "Backend is unreachable. Please verify the API server is running."}
+    except Exception:
+        return {"ok": False, "ticket": None, "error": "An unexpected error occurred while resolving the ticket."}
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +197,88 @@ def _render_escalation_panel(metadata: dict) -> None:
             st.caption(f"Backend reasoning: {metadata['reason']}")
         if metadata.get("ticket_id"):
             st.caption(f"A support ticket (`{metadata['ticket_id']}`) was created for staff review.")
+
+
+# ---------------------------------------------------------------------------
+# Staff / Admin view (Phase 7C)
+#
+# Lives in the sidebar so the student chat experience is visually unchanged.
+# Renders ONLY fields the ticket API actually returns (ticket_id, status,
+# created_at, predicted_intent, query, source) -- there is no staff name,
+# resolution timestamp, priority, or SLA in the ticket model, so none is
+# shown or invented.
+# ---------------------------------------------------------------------------
+def _load_admin_tickets() -> None:
+    """Refresh the cached ticket list from the backend into session state."""
+    result = fetch_tickets()
+    if result["ok"]:
+        st.session_state[_ADMIN_TICKETS_KEY] = result["tickets"]
+        st.session_state[_ADMIN_ERROR_KEY] = None
+    else:
+        st.session_state[_ADMIN_ERROR_KEY] = result["error"]
+
+
+def _render_admin_panel() -> None:
+    with st.sidebar:
+        st.markdown("### 🛠️ Staff / Admin")
+        st.caption("Escalated queries awaiting staff review.")
+
+        if st.button("Load tickets", key="admin_load_tickets", use_container_width=True):
+            _load_admin_tickets()
+            st.rerun()
+
+        notice = st.session_state.pop(_ADMIN_NOTICE_KEY, None)
+        if notice:
+            st.success(notice)
+
+        error = st.session_state.get(_ADMIN_ERROR_KEY)
+        if error:
+            st.error(error)
+
+        tickets = st.session_state.get(_ADMIN_TICKETS_KEY)
+        if tickets is None:
+            return
+
+        if not tickets:
+            st.caption("No escalation tickets yet.")
+            return
+
+        open_count = sum(1 for t in tickets if t.get("status") == "open")
+        st.caption(f"{len(tickets)} ticket(s) · {open_count} open")
+
+        for ticket in tickets:
+            ticket_id = ticket.get("ticket_id", "")
+            ticket_status = ticket.get("status", "")
+            badge = "🟡 OPEN" if ticket_status == "open" else "✅ RESOLVED"
+
+            with st.container(border=True):
+                st.markdown(f"**{badge}**")
+                if ticket.get("query"):
+                    st.caption(f"Query: {ticket['query']}")
+                meta_bits = []
+                if ticket.get("predicted_intent"):
+                    meta_bits.append(f"Intent: `{ticket['predicted_intent']}`")
+                if ticket.get("source"):
+                    meta_bits.append(f"Source: `{ticket['source']}`")
+                if meta_bits:
+                    st.caption(" · ".join(meta_bits))
+                if ticket.get("created_at"):
+                    st.caption(f"Created: {ticket['created_at']}")
+                st.caption(f"ID: `{ticket_id}`")
+
+                if ticket_status == "open":
+                    if st.button(
+                        "Resolve",
+                        key=f"admin_resolve_{ticket_id}",
+                        use_container_width=True,
+                    ):
+                        outcome = resolve_ticket(ticket_id)
+                        if outcome["ok"]:
+                            st.session_state[_ADMIN_NOTICE_KEY] = f"Ticket {ticket_id} resolved."
+                            _load_admin_tickets()
+                        else:
+                            st.session_state[_ADMIN_ERROR_KEY] = outcome["error"]
+                        st.rerun()
 
 
 def _handle_user_query(prompt: str) -> None:
@@ -218,6 +355,10 @@ def _handle_user_query(prompt: str) -> None:
 
 st.title("AdtU Campus Copilot")
 st.markdown("##### Official institutional assistant for Assam down town University")
+
+# Staff/Admin ticket queue (Phase 7C) — sidebar only; the student-facing
+# chat experience below is unchanged.
+_render_admin_panel()
 
 # Top bar actions
 col1, col2 = st.columns([1, 4])

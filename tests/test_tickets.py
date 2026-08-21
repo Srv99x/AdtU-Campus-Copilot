@@ -11,10 +11,12 @@ from unittest.mock import MagicMock, patch
 
 from app.database.tickets import (
     Ticket,
+    VALID_TICKET_STATUSES,
     create_ticket,
     get_ticket,
     initialize_database,
     list_tickets,
+    update_ticket_status,
     _MAX_LOCK_RETRIES,
 )
 
@@ -243,6 +245,181 @@ class TestTicketsDatabase(unittest.TestCase):
         retrieved = get_ticket(self.db_path, ticket.ticket_id)
         self.assertIsNotNone(retrieved)
         self.assertEqual(retrieved.query, "Persistence test")
+
+
+class TestUpdateTicketStatus(unittest.TestCase):
+    """Phase 7C: the open -> resolved staff transition."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.temp_dir.name) / "test_escalation.db"
+        initialize_database(self.db_path)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_valid_statuses_are_exactly_open_and_resolved(self) -> None:
+        """The state machine stays deliberately minimal -- no in_progress,
+        reopened, pending, archived, or deleted."""
+        self.assertEqual(VALID_TICKET_STATUSES, frozenset({"open", "resolved"}))
+
+    def test_open_ticket_becomes_resolved(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        self.assertEqual(ticket.status, "open")
+
+        updated = update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+
+        self.assertIsInstance(updated, Ticket)
+        self.assertEqual(updated.ticket_id, ticket.ticket_id)
+        self.assertEqual(updated.status, "resolved")
+
+    def test_resolved_status_is_persisted_and_retrievable(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+
+        # Fresh connection via the existing read path.
+        retrieved = get_ticket(self.db_path, ticket.ticket_id)
+        self.assertIsNotNone(retrieved)
+        self.assertEqual(retrieved.status, "resolved")
+
+        # And it moves between the existing status-filtered listings.
+        self.assertEqual(list_tickets(self.db_path, status="open"), [])
+        resolved_list = list_tickets(self.db_path, status="resolved")
+        self.assertEqual(len(resolved_list), 1)
+        self.assertEqual(resolved_list[0].ticket_id, ticket.ticket_id)
+
+    def test_unknown_ticket_id_returns_none(self) -> None:
+        """Mirrors get_ticket()'s None-for-not-found contract."""
+        self.assertIsNone(update_ticket_status(self.db_path, "does-not-exist", "resolved"))
+
+    def test_invalid_status_raises_value_error(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+
+        for bad_status in ("closed", "in_progress", "RESOLVED", "", "archived"):
+            with self.subTest(status=bad_status):
+                with self.assertRaisesRegex(ValueError, "Invalid ticket status"):
+                    update_ticket_status(self.db_path, ticket.ticket_id, bad_status)
+
+        # The rejected calls left the ticket untouched.
+        self.assertEqual(get_ticket(self.db_path, ticket.ticket_id).status, "open")
+
+    def test_invalid_status_is_rejected_before_any_database_access(self) -> None:
+        with patch("app.database.tickets._get_connection") as mock_get_connection:
+            with self.assertRaises(ValueError):
+                update_ticket_status(self.db_path, "any-id", "bogus")
+        mock_get_connection.assert_not_called()
+
+    def test_resolving_an_already_resolved_ticket_is_idempotent(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        first = update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+        second = update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+
+        self.assertEqual(first.status, "resolved")
+        self.assertEqual(second.status, "resolved")
+        self.assertEqual(second.ticket_id, ticket.ticket_id)
+        # No duplicate row was created by the repeat call.
+        self.assertEqual(len(list_tickets(self.db_path)), 1)
+
+    def test_resolved_ticket_cannot_be_silently_reopened(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+
+        with self.assertRaisesRegex(ValueError, "already resolved"):
+            update_ticket_status(self.db_path, ticket.ticket_id, "open")
+
+        # Still resolved -- the refused transition changed nothing.
+        self.assertEqual(get_ticket(self.db_path, ticket.ticket_id).status, "resolved")
+
+    def test_setting_open_ticket_to_open_is_idempotent(self) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        updated = update_ticket_status(self.db_path, ticket.ticket_id, "open")
+        self.assertEqual(updated.status, "open")
+        self.assertEqual(len(list_tickets(self.db_path)), 1)
+
+    def test_unrelated_ticket_fields_are_unchanged(self) -> None:
+        ticket = create_ticket(
+            self.db_path,
+            "What is the WiFi password?",
+            "facilities",
+            "stage_2_insufficient_evidence",
+            user_metadata='{"user_id": 7}',
+        )
+
+        updated = update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+
+        for field in ("ticket_id", "query", "predicted_intent", "created_at", "source", "user_metadata"):
+            with self.subTest(field=field):
+                self.assertEqual(getattr(updated, field), getattr(ticket, field))
+
+        # ...and the same holds for what is actually stored on disk.
+        stored = get_ticket(self.db_path, ticket.ticket_id)
+        for field in ("ticket_id", "query", "predicted_intent", "created_at", "source", "user_metadata"):
+            with self.subTest(field=field, layer="db"):
+                self.assertEqual(getattr(stored, field), getattr(ticket, field))
+
+    def test_update_does_not_affect_other_tickets(self) -> None:
+        t1 = create_ticket(self.db_path, "Q1", "admissions", "source1")
+        t2 = create_ticket(self.db_path, "Q2", "fees", "source2")
+
+        update_ticket_status(self.db_path, t1.ticket_id, "resolved")
+
+        self.assertEqual(get_ticket(self.db_path, t1.ticket_id).status, "resolved")
+        self.assertEqual(get_ticket(self.db_path, t2.ticket_id).status, "open")
+        self.assertEqual(len(list_tickets(self.db_path)), 2)
+
+    @patch("app.database.tickets.time.sleep")
+    def test_normal_update_succeeds_without_retry(self, mock_sleep: MagicMock) -> None:
+        ticket = create_ticket(self.db_path, "Q", "fees", "stage_1_low")
+        mock_sleep.reset_mock()
+        update_ticket_status(self.db_path, ticket.ticket_id, "resolved")
+        mock_sleep.assert_not_called()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_update_retries_transient_lock_then_succeeds(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        """M4's bounded lock retry also covers the new update path."""
+        stored_row = {
+            "ticket_id": "tk-1",
+            "query": "Q",
+            "predicted_intent": "fees",
+            "status": "open",
+            "created_at": "2026-01-01T00:00:00Z",
+            "source": "stage_1_low",
+            "user_metadata": None,
+        }
+
+        locked_conn = _mock_connection([sqlite3.OperationalError("database is locked")])
+
+        select_cursor = MagicMock()
+        select_cursor.fetchone.return_value = stored_row
+        ok_conn = _mock_connection([select_cursor, None])  # SELECT then UPDATE
+
+        mock_get_connection.side_effect = [locked_conn, ok_conn]
+
+        updated = update_ticket_status(self.db_path, "tk-1", "resolved")
+
+        self.assertEqual(updated.status, "resolved")
+        self.assertEqual(mock_get_connection.call_count, 2)
+        mock_sleep.assert_called_once()
+        locked_conn.close.assert_called_once()
+        ok_conn.close.assert_called_once()
+
+    @patch("app.database.tickets._get_connection")
+    @patch("app.database.tickets.time.sleep")
+    def test_update_non_transient_error_is_not_retried(
+        self, mock_sleep: MagicMock, mock_get_connection: MagicMock
+    ) -> None:
+        bad_conn = _mock_connection([sqlite3.OperationalError("no such table: tickets")])
+        mock_get_connection.return_value = bad_conn
+
+        with self.assertRaises(sqlite3.OperationalError):
+            update_ticket_status(self.db_path, "tk-1", "resolved")
+
+        mock_get_connection.assert_called_once()
+        mock_sleep.assert_not_called()
+        bad_conn.close.assert_called_once()
 
 
 if __name__ == "__main__":
