@@ -12,6 +12,7 @@ from app.rag.generator import (
     Citation,
     GenerationResult,
     extract_citations,
+    format_citation_reference,
     format_evidence,
     generate_grounded_answer,
 )
@@ -214,6 +215,114 @@ class TestRagGenerator(unittest.TestCase):
         self.assertIn("Ignore previous instructions", content_text)
         self.assertIn("USER QUERY:", content_text)
         self.assertIn("SUPPLIED EVIDENCE:", content_text)
+
+
+class TestCitationFallback(unittest.TestCase):
+    """Phase 6A — citation fallback for chunks with blank source_url (all 76
+    current V2 chunks). Covers: clickable URL citation, non-fabricated
+    fallback identity, derived-child -> parent lineage, and dedup, per the
+    Phase 6 audit's Critical finding C3."""
+
+    def test_url_citation_renders_clickable_link(self) -> None:
+        """Existing clickable behavior is preserved unchanged when source_url
+        is present and non-blank."""
+        line = format_citation_reference(
+            chunk_id="hostel_1",
+            parent_chunk_id=None,
+            source_url="https://adtu.in/facilities/hostel",
+            section="Hostel Details",
+            source_type="html",
+        )
+        self.assertEqual(line, "[Hostel Details](https://adtu.in/facilities/hostel)")
+
+    def test_missing_url_citation_renders_non_clickable_fallback(self) -> None:
+        """When source_url is missing/blank, no URL is fabricated -- instead a
+        clear, non-clickable identity is built from real metadata only."""
+        line = format_citation_reference(
+            chunk_id="v2_academic_calendar_0",
+            parent_chunk_id=None,
+            source_url="",
+            section="academic_calendar",
+            source_type="official_pdf",
+        )
+        # Never produce a markdown link (would render as a dead/empty link).
+        self.assertNotIn("](", line)
+        self.assertNotIn("http", line)
+        # Real, available metadata is surfaced instead.
+        self.assertIn("v2_academic_calendar_0", line)
+        self.assertIn("academic_calendar", line)
+        self.assertIn("official_pdf", line)
+        self.assertIn("source link unavailable", line)
+
+    def test_derived_child_to_parent_lineage_preserved_in_fallback(self) -> None:
+        """A derived child with no source_url still surfaces its canonical
+        parent lineage in the fallback citation (via extract_citations, then
+        formatted)."""
+        derived_chunk = RetrievedChunk(
+            chunk_id="v2_scholarships_0::embed::v1::part-00",
+            document="Scholarship table text.",
+            metadata={
+                "parent_chunk_id": "v2_scholarships_0",
+                "source_url": "",
+                "section": "Fees",
+                "source_type": "official_pdf",
+            },
+            distance=0.18,
+        )
+        citations = extract_citations([derived_chunk])
+        self.assertEqual(len(citations), 1)
+        citation = citations[0]
+        self.assertEqual(citation.parent_chunk_id, "v2_scholarships_0")
+
+        line = format_citation_reference(
+            chunk_id=citation.chunk_id,
+            parent_chunk_id=citation.parent_chunk_id,
+            source_url=citation.source_url,
+            section=citation.section,
+            source_type=citation.source_type,
+        )
+        self.assertNotIn("](", line)  # still no fabricated URL
+        self.assertIn("Fees", line)
+        self.assertIn("via `v2_scholarships_0`", line)
+
+    def test_duplicate_citations_deduplicated_regardless_of_url_presence(self) -> None:
+        """extract_citations' existing dedup-by-parent behavior is unaffected
+        by whether individual children have a source_url or not."""
+        child_with_url = RetrievedChunk(
+            chunk_id="v1_derived_42",
+            document="Hostel fees for Boys is 45,000 INR per semester.",
+            metadata={
+                "parent_chunk_id": "v1_hostel_canonical",
+                "source_url": "https://adtu.in/hostel",
+                "section": "Fees",
+            },
+            distance=0.20,
+        )
+        child_without_url = RetrievedChunk(
+            chunk_id="v1_derived_43",
+            document="Girls hostel is also 45,000 INR.",
+            metadata={
+                "parent_chunk_id": "v1_hostel_canonical",
+                "source_url": "",
+                "section": "Fees",
+            },
+            distance=0.21,
+        )
+
+        citations = extract_citations([child_with_url, child_without_url])
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0].parent_chunk_id, "v1_hostel_canonical")
+
+        # The kept (first-seen) citation still formats correctly, whichever
+        # URL state it carries.
+        line = format_citation_reference(
+            chunk_id=citations[0].chunk_id,
+            parent_chunk_id=citations[0].parent_chunk_id,
+            source_url=citations[0].source_url,
+            section=citations[0].section,
+            source_type=citations[0].source_type,
+        )
+        self.assertIn("via `v1_hostel_canonical`", line)
 
 
 if __name__ == "__main__":
