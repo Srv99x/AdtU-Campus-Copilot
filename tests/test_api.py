@@ -66,6 +66,99 @@ class TestFastAPIWrapper(unittest.TestCase):
         self.assertNotIn("test-key-value", response.text)
 
     @patch("app.api.main.get_collection")
+    def test_ready_recognizes_api_key_from_dotenv_file(self, mock_get_collection: MagicMock) -> None:
+        """Phase 7D-2: a key that exists only in the repo-root .env (not
+        exported to the shell) must count as present. Before this fix /ready
+        read the raw process environment only, so it reported 'missing or
+        blank' -- and a 503 -- for a key that /chat was successfully using."""
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        env_file = Path(self.temp_dir.name) / "dotenv_only.env"
+        env_file.write_text(
+            "GEMINI_API_KEY=key-from-dotenv-file\n"
+            "GEMINI_GENERATION_MODEL=gemini-2.5-flash\n",
+            encoding="utf-8",
+        )
+
+        # patch.dict snapshots os.environ and restores it on exit, so the key
+        # load_dotenv performs here cannot leak into any other test.
+        with patch.dict(os.environ), patch("app.api.main.ENV_PATH", env_file):
+            os.environ.pop("GEMINI_API_KEY", None)
+            self.assertNotIn("GEMINI_API_KEY", os.environ)  # precondition
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "ready")
+        self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertEqual(data["checks"]["gemini_api_key"]["detail"], "present")
+        # Presence only -- the value from .env is never echoed back.
+        self.assertNotIn("key-from-dotenv-file", response.text)
+
+    @patch("app.api.main.get_collection")
+    def test_ready_reports_missing_key_when_absent_from_env_and_dotenv(
+        self, mock_get_collection: MagicMock
+    ) -> None:
+        """With no key in the process environment and a .env that does not
+        define one, /ready must still correctly report it missing."""
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        env_file = Path(self.temp_dir.name) / "no_key.env"
+        env_file.write_text("GEMINI_GENERATION_MODEL=gemini-2.5-flash\n", encoding="utf-8")
+
+        with patch.dict(os.environ), patch("app.api.main.ENV_PATH", env_file):
+            os.environ.pop("GEMINI_API_KEY", None)
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 503)
+        data = response.json()
+        self.assertEqual(data["status"], "not_ready")
+        self.assertFalse(data["checks"]["gemini_api_key"]["ok"])
+        self.assertEqual(data["checks"]["gemini_api_key"]["detail"], "missing or blank")
+
+    @patch("app.api.main.get_collection")
+    def test_ready_tolerates_absent_dotenv_file(self, mock_get_collection: MagicMock) -> None:
+        """A missing .env must not raise -- an exported env var alone suffices."""
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        missing_env = Path(self.temp_dir.name) / "does_not_exist.env"
+        self.assertFalse(missing_env.exists())
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "exported-key"}), \
+             patch("app.api.main.ENV_PATH", missing_env):
+            response = self.client.get("/ready")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ready")
+
+    @patch("app.api.main.get_collection")
+    def test_exported_env_var_takes_precedence_over_dotenv(
+        self, mock_get_collection: MagicMock
+    ) -> None:
+        """python-dotenv must not clobber a real exported variable."""
+        mock_ready_collection = MagicMock()
+        mock_ready_collection.count.return_value = 957
+        mock_get_collection.return_value = mock_ready_collection
+
+        env_file = Path(self.temp_dir.name) / "conflicting.env"
+        env_file.write_text("GEMINI_API_KEY=value-from-file\n", encoding="utf-8")
+
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "value-from-shell"}), \
+             patch("app.api.main.ENV_PATH", env_file):
+            response = self.client.get("/ready")
+            self.assertEqual(os.environ["GEMINI_API_KEY"], "value-from-shell")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("value-from-shell", response.text)
+        self.assertNotIn("value-from-file", response.text)
+
+    @patch("app.api.main.get_collection")
     def test_ready_missing_api_key_returns_503(self, mock_get_collection: MagicMock) -> None:
         mock_ready_collection = MagicMock()
         mock_ready_collection.count.return_value = 957

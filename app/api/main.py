@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 import chromadb
+from dotenv import load_dotenv
 from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -20,6 +21,13 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+# Repository-root .env, loaded before any environment-dependent runtime check.
+# app/rag/generator.py and query_embed.py already load this file themselves, so
+# /chat has always seen it; without this, /ready read only the raw process
+# environment and reported "missing or blank" for a key that was present in
+# .env and working -- i.e. it told operators the system was down while it ran.
+ENV_PATH = ROOT / ".env"
 
 from app.rag.pipeline import run_rag_pipeline, RagResult, Citation, GateMetrics, RetrievedChunk
 from app.database.tickets import (
@@ -151,7 +159,8 @@ def readiness_check() -> JSONResponse:
     """Dependency-aware readiness check.
 
     Verifies (without ever calling Gemini or generating an embedding):
-      - GEMINI_API_KEY is present and non-blank in the environment.
+      - GEMINI_API_KEY is present and non-blank in the environment, counting
+        the repository-root .env that the rest of the runtime already reads.
       - The canonical runtime Chroma collection (via the existing
         get_collection() singleton/config) is reachable and non-empty.
 
@@ -159,6 +168,11 @@ def readiness_check() -> JSONResponse:
     """
     checks: dict[str, dict[str, Any]] = {}
     all_ok = True
+
+    # Loaded per call (not just at import) so an operator who fixes .env can
+    # re-check without restarting uvicorn. python-dotenv does not override
+    # variables already exported in the real process environment.
+    load_dotenv(ENV_PATH)
 
     api_key = os.getenv("GEMINI_API_KEY")
     key_present = bool(api_key and api_key.strip())

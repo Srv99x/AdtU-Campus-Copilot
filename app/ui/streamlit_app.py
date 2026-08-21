@@ -73,13 +73,41 @@ if "messages" not in st.session_state:
 # ---------------------------------------------------------------------------
 # Backend Interaction Helpers
 # ---------------------------------------------------------------------------
-def check_backend_health() -> bool:
-    """Check if the FastAPI backend is reachable."""
+def check_backend_status() -> dict:
+    """Resolve the backend into one of three distinct operator-facing states.
+
+    Uses /ready (not /health): /health is a static liveness ping that stays
+    green even when Chroma is missing or the Gemini key is absent, which hid
+    a broken backend behind an "Online" badge. /ready reports the real
+    dependency state, and one call distinguishes all three cases:
+
+        "offline"   -- unreachable: connection refused, timeout, DNS, etc.
+        "not_ready" -- process alive but a dependency check failed
+        "ready"     -- alive and every dependency check passed
+
+    Returns {"state": str, "failed": list[str]}. `failed` names the failing
+    checks (e.g. "chroma", "gemini_api_key") straight from the /ready
+    payload, which reports only presence/absence -- never a key value.
+    """
     try:
-        response = requests.get(f"{API_BASE_URL}/health", timeout=2)
-        return response.status_code == 200 and response.json().get("status") == "ok"
-    except (requests.exceptions.RequestException, ValueError):
-        return False
+        response = requests.get(f"{API_BASE_URL}/ready", timeout=3)
+    except requests.exceptions.RequestException:
+        return {"state": "offline", "failed": []}
+
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = {}
+
+    if response.status_code == 200 and payload.get("status") == "ready":
+        return {"state": "ready", "failed": []}
+
+    checks = payload.get("checks") or {}
+    failed = [
+        name for name, result in checks.items()
+        if isinstance(result, dict) and not result.get("ok")
+    ]
+    return {"state": "not_ready", "failed": failed}
 
 def send_chat_query(query: str) -> dict:
     """Send user query to the backend and return the parsed response."""
@@ -368,8 +396,12 @@ with col1:
         st.rerun()
 
 with col2:
-    if check_backend_health():
-        st.success("Backend: Online", icon="✅")
+    _backend = check_backend_status()
+    if _backend["state"] == "ready":
+        st.success("Backend: Ready", icon="✅")
+    elif _backend["state"] == "not_ready":
+        _failed = ", ".join(_backend["failed"]) if _backend["failed"] else "one or more dependencies"
+        st.warning(f"Backend: Running but not ready — {_failed}", icon="⚠️")
     else:
         st.error("Backend: Offline or Unreachable", icon="🚨")
 

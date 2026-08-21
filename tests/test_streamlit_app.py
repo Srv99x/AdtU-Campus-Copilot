@@ -17,6 +17,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import requests
 from streamlit.testing.v1 import AppTest
 
 from app.ui.streamlit_app import DEMO_SCENARIOS
@@ -25,12 +26,22 @@ APP_PATH = str(Path(__file__).resolve().parents[1] / "app" / "ui" / "streamlit_a
 RUN_TIMEOUT = 20  # AppTest's default 3s is too tight for a cold script run
 
 
-def _mock_response(json_body: dict, status_code: int = 200) -> MagicMock:
+def _mock_response(json_body, status_code: int = 200) -> MagicMock:
     resp = MagicMock()
     resp.status_code = status_code
     resp.json.return_value = json_body
     resp.raise_for_status.return_value = None
     return resp
+
+
+# Shape returned by a healthy GET /ready (see app/api/main.py readiness_check).
+_READY_PAYLOAD = {
+    "status": "ready",
+    "checks": {
+        "gemini_api_key": {"ok": True, "detail": "present"},
+        "chroma": {"ok": True, "detail": "collection accessible with 957 records"},
+    },
+}
 
 
 class TestDemoScenarioDefinitions(unittest.TestCase):
@@ -496,8 +507,8 @@ class TestStaffAdminView(unittest.TestCase):
         self.tickets = [dict(self.OPEN_TICKET)]
 
         def _get_side_effect(url: str, **kwargs):
-            if url.endswith("/health"):
-                return _mock_response({"status": "ok"})
+            if url.endswith("/ready"):
+                return _mock_response(_READY_PAYLOAD)
             if url.endswith("/tickets"):
                 return _mock_response(self.tickets)
             return _mock_response({})
@@ -597,8 +608,8 @@ class TestStaffAdminView(unittest.TestCase):
         import requests as _requests
 
         def _failing_get(url: str, **kwargs):
-            if url.endswith("/health"):
-                return _mock_response({"status": "ok"})
+            if url.endswith("/ready"):
+                return _mock_response(_READY_PAYLOAD)
             raise _requests.exceptions.ConnectionError("connection refused")
 
         self.mock_get.side_effect = _failing_get
@@ -700,6 +711,139 @@ class TestStaffAdminView(unittest.TestCase):
         self.assertFalse(at.exception)
         panel = next(e for e in at.expander if e.label == "🔎 Why this answer?")
         self.assertIn("- [Fees](https://adtu.in/fees)", [m.value for m in panel.markdown])
+
+
+class TestBackendStatusIndicator(unittest.TestCase):
+    """Phase 7D-2: the banner must distinguish offline / alive-but-not-ready /
+    ready, driven by /ready rather than the always-green /health ping."""
+
+    def setUp(self) -> None:
+        self.get_patcher = patch("requests.get")
+        self.post_patcher = patch("requests.post")
+        self.mock_get = self.get_patcher.start()
+        self.mock_post = self.post_patcher.start()
+        self.addCleanup(self.get_patcher.stop)
+        self.addCleanup(self.post_patcher.stop)
+
+    def _run(self) -> AppTest:
+        at = AppTest.from_file(APP_PATH)
+        at.run(timeout=RUN_TIMEOUT)
+        self.assertFalse(at.exception)
+        return at
+
+    def test_ready_backend_shows_ready(self) -> None:
+        self.mock_get.return_value = _mock_response(_READY_PAYLOAD)
+
+        at = self._run()
+
+        self.assertTrue(any("Backend: Ready" in s.value for s in at.success))
+        self.assertFalse(any("Backend" in w.value for w in at.warning))
+        self.assertFalse(any("Backend" in e.value for e in at.error))
+
+    def test_alive_but_not_ready_shows_warning_with_failed_checks(self) -> None:
+        self.mock_get.return_value = _mock_response(
+            {
+                "status": "not_ready",
+                "checks": {
+                    "gemini_api_key": {"ok": False, "detail": "missing or blank"},
+                    "chroma": {"ok": True, "detail": "collection accessible with 957 records"},
+                },
+            },
+            status_code=503,
+        )
+
+        at = self._run()
+
+        warnings = [w.value for w in at.warning]
+        self.assertTrue(any("not ready" in w.lower() for w in warnings))
+        # Names the failing dependency so the operator knows what to fix...
+        self.assertTrue(any("gemini_api_key" in w for w in warnings))
+        # ...but never says the system is fine, and never leaks a key value.
+        self.assertFalse(any("Backend: Ready" in s.value for s in at.success))
+        self.assertFalse(any("chroma" in w for w in warnings))
+
+    def test_offline_backend_shows_error(self) -> None:
+        self.mock_get.side_effect = requests.exceptions.ConnectionError("connection refused")
+
+        at = self._run()
+
+        errors = [e.value for e in at.error]
+        self.assertTrue(any("Offline or Unreachable" in e for e in errors))
+        self.assertFalse(any("Backend: Ready" in s.value for s in at.success))
+        # Raw transport detail is not surfaced to the user.
+        self.assertFalse(any("connection refused" in e for e in errors))
+
+    def test_timeout_is_treated_as_offline(self) -> None:
+        self.mock_get.side_effect = requests.exceptions.Timeout("timed out")
+
+        at = self._run()
+
+        self.assertTrue(any("Offline or Unreachable" in e.value for e in at.error))
+
+    def test_indicator_queries_the_ready_endpoint(self) -> None:
+        self.mock_get.return_value = _mock_response(_READY_PAYLOAD)
+
+        self._run()
+
+        called_urls = [c.args[0] for c in self.mock_get.call_args_list if c.args]
+        self.assertTrue(any(u.endswith("/ready") for u in called_urls))
+
+    def test_chat_still_works_with_ready_indicator(self) -> None:
+        """The status indicator change must not disturb the chat path."""
+        self.mock_get.return_value = _mock_response(_READY_PAYLOAD)
+        self.mock_post.return_value = _mock_response(
+            {
+                "status": "answered",
+                "intent": "fees",
+                "answer": "Chat unaffected by the readiness indicator.",
+                "citations": [],
+                "confidence_status": "high",
+                "ticket_id": None,
+                "reason": "ok",
+            }
+        )
+
+        at = self._run()
+        at.chat_input[0].set_value("What is the hostel fee?").run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        self.assertEqual(
+            self.mock_post.call_args.kwargs["json"]["query"], "What is the hostel fee?"
+        )
+        assistant_texts = [
+            m.value for cm in at.chat_message if cm.name == "assistant" for m in cm.markdown
+        ]
+        self.assertIn("Chat unaffected by the readiness indicator.", assistant_texts)
+
+    def test_chat_still_usable_when_backend_not_ready(self) -> None:
+        """A not_ready banner must not block or alter the chat workflow."""
+        self.mock_get.return_value = _mock_response(
+            {
+                "status": "not_ready",
+                "checks": {"gemini_api_key": {"ok": False, "detail": "missing or blank"}},
+            },
+            status_code=503,
+        )
+        self.mock_post.return_value = _mock_response(
+            {
+                "status": "answered",
+                "intent": "fees",
+                "answer": "Still answering.",
+                "citations": [],
+                "confidence_status": "high",
+                "ticket_id": None,
+                "reason": "ok",
+            }
+        )
+
+        at = self._run()
+        at.chat_input[0].set_value("Fee question").run(timeout=RUN_TIMEOUT)
+
+        self.assertFalse(at.exception)
+        assistant_texts = [
+            m.value for cm in at.chat_message if cm.name == "assistant" for m in cm.markdown
+        ]
+        self.assertIn("Still answering.", assistant_texts)
 
 
 if __name__ == "__main__":
