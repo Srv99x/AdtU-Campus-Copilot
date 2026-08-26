@@ -47,10 +47,68 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AdtU Campus Copilot API", version="1.0.0")
 
+
+# ---------------------------------------------------------------------------
+# CORS configuration
+#
+# Origins are environment-driven via ALLOWED_ORIGINS (comma-separated), so
+# the same code deploys unchanged from local dev through to the production
+# Vercel frontend + Render backend -- only the environment value differs.
+# Falls back to the two local-dev origins this API has always served
+# (Streamlit on 8501, and the vanilla-JS frontend served the same way for
+# local verification) when ALLOWED_ORIGINS isn't set, so behavior for an
+# operator who hasn't configured it yet is unchanged.
+#
+# Never a wildcard ("*"): an empty/unset ALLOWED_ORIGINS falls back to the
+# explicit local-dev list below, never to "allow everything".
+# ---------------------------------------------------------------------------
+_DEFAULT_DEV_ORIGINS: list[str] = [
+    "http://localhost:8501",
+    "http://127.0.0.1:8501",
+]
+
+
+def _parse_allowed_origins(raw: str | None) -> list[str]:
+    """Parse a comma-separated ALLOWED_ORIGINS value into a clean origin list.
+
+    Splits on commas, strips whitespace around each entry, and drops empty
+    entries (e.g. a trailing comma or blank env value) -- never returns a
+    wildcard and never lets an empty string slip through as an allowed
+    origin.
+    """
+    if not raw:
+        return []
+    return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
+
+def _resolve_allowed_origins() -> list[str]:
+    """Read+parse ALLOWED_ORIGINS from the environment, falling back to the
+    local-dev defaults when unset/empty. A separate function (rather than
+    inline module-level statements) purely so tests can exercise this exact
+    decision logic directly -- via patch.dict(os.environ, ...) -- without
+    reloading this module or touching the live `app` singleton, which other
+    test files' dependency_overrides/@patch wiring is bound to by function
+    identity captured at their own import time.
+
+    Loads ENV_PATH first (a no-op if the key isn't present there) so a
+    local .env carrying ALLOWED_ORIGINS is picked up too, matching how
+    every other env-dependent module in this codebase (app/rag/generator.py,
+    query_embed.py) loads dotenv itself at its own point of use.
+    """
+    load_dotenv(ENV_PATH)
+    return _parse_allowed_origins(os.getenv("ALLOWED_ORIGINS")) or _DEFAULT_DEV_ORIGINS
+
+
+ALLOWED_ORIGINS: list[str] = _resolve_allowed_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8501", "http://127.0.0.1:8501"], # Local Streamlit only
-    allow_credentials=True,
+    allow_origins=ALLOWED_ORIGINS,
+    # No cookie/session-based auth exists anywhere in this API (confirmed:
+    # every endpoint is a stateless JSON call), so credentialed cross-origin
+    # requests are never needed -- keeping this False avoids exposing
+    # credentials the API has no use for.
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
