@@ -47,8 +47,8 @@ _READY_PAYLOAD = {
 class TestDemoScenarioDefinitions(unittest.TestCase):
     """Pure data-shape checks on the curated example list -- no app run needed."""
 
-    def test_exactly_five_scenarios(self) -> None:
-        self.assertEqual(len(DEMO_SCENARIOS), 5)
+    def test_exactly_six_scenarios(self) -> None:
+        self.assertEqual(len(DEMO_SCENARIOS), 6)
 
     def test_every_scenario_has_a_label_and_a_nonblank_query(self) -> None:
         for scenario in DEMO_SCENARIOS:
@@ -61,31 +61,33 @@ class TestDemoScenarioDefinitions(unittest.TestCase):
         labels = [s["label"] for s in DEMO_SCENARIOS]
         self.assertEqual(len(labels), len(set(labels)))
 
-    def test_covers_the_five_required_scenario_themes(self) -> None:
-        """Loose vocabulary checks, not exact-string checks, so the example
-        queries stay easy to edit without this test becoming brittle."""
+    def test_matches_the_six_approved_home_screen_queries(self) -> None:
+        """The home-screen suggestion cards must be exactly the six queries
+        fixed by the approved design (Final UI Pass) -- not a paraphrase or
+        a subset. Order isn't asserted so the cards stay reorderable."""
+        approved_queries = {
+            "What documents are required for BTech admission at AdtU?",
+            "What scholarships are available?",
+            "Show me the CSE DS & AI IBM class routine",
+            "What are the hostel facilities?",
+            "When is the next university holiday?",
+            "How much are the BTech fees?",
+        }
+        self.assertEqual({s["query"] for s in DEMO_SCENARIOS}, approved_queries)
+
+    def test_covers_the_six_required_scenario_themes(self) -> None:
+        """Loose vocabulary checks, not exact-string checks, so this stays
+        robust to minor copy edits while still verifying every approved
+        topic domain (admissions, scholarships, class routine, hostel
+        facilities, holiday/calendar, fees) is represented."""
         queries = [s["query"].lower() for s in DEMO_SCENARIOS]
 
-        self.assertTrue(
-            any("admission" in q or "fee" in q or "facilit" in q for q in queries),
-            "expected a normal campus Q&A scenario",
-        )
-        self.assertTrue(
-            any("scholarship" in q and ("%" in q or "percent" in q or "amount" in q) for q in queries),
-            "expected a monetary scholarship routing scenario",
-        )
-        self.assertTrue(
-            any("routine" in q or "schedule" in q or "timetable" in q for q in queries),
-            "expected a class-routine retrieval scenario",
-        )
-        self.assertTrue(
-            any("capital" in q or "france" in q for q in queries),
-            "expected an out-of-scope rejection scenario",
-        )
-        self.assertTrue(
-            any("wifi" in q or "password" in q for q in queries),
-            "expected a likely-safe-escalation scenario",
-        )
+        self.assertTrue(any("admission" in q for q in queries), "expected an admissions scenario")
+        self.assertTrue(any("scholarship" in q for q in queries), "expected a scholarships scenario")
+        self.assertTrue(any("routine" in q for q in queries), "expected a class-routine scenario")
+        self.assertTrue(any("hostel" in q or "facilit" in q for q in queries), "expected a hostel/facilities scenario")
+        self.assertTrue(any("holiday" in q for q in queries), "expected a holiday/calendar scenario")
+        self.assertTrue(any("fee" in q for q in queries), "expected a fees scenario")
 
 
 class TestGuidedDemoModeIntegration(unittest.TestCase):
@@ -161,9 +163,13 @@ class TestGuidedDemoModeIntegration(unittest.TestCase):
         self.assertIn(target_scenario["query"], user_texts)
         self.assertIn("Grounded answer from the real pipeline.", assistant_texts)
 
-    def test_clicking_out_of_scope_scenario_shows_rejection_not_a_fabricated_answer(self) -> None:
-        """The out-of-scope scenario must go through the same status-handling
-        branch as a manually typed out-of-scope query -- no shortcut."""
+    def test_manual_out_of_scope_query_shows_rejection_not_a_fabricated_answer(self) -> None:
+        """Out-of-scope handling itself is untouched by the Final UI Pass --
+        the home screen's six suggestion cards are now all real, in-scope
+        AdtU queries per the approved design, so this is exercised via
+        manual chat input instead of a dedicated demo card (previously
+        "What is the capital of France?"). The status-handling branch in
+        _handle_user_query is unchanged either way."""
         self.mock_post.return_value = _mock_response(
             {
                 "status": "out_of_scope",
@@ -176,16 +182,13 @@ class TestGuidedDemoModeIntegration(unittest.TestCase):
             }
         )
 
-        oos_scenario = next(s for s in DEMO_SCENARIOS if "capital" in s["query"].lower())
-
         at = AppTest.from_file(APP_PATH)
         at.run(timeout=RUN_TIMEOUT)
-        button = next(b for b in at.button if b.label == oos_scenario["label"])
-        button.click().run(timeout=RUN_TIMEOUT)
+        at.chat_input[0].set_value("What is the capital of France?").run(timeout=RUN_TIMEOUT)
 
         self.assertFalse(at.exception)
         sent_query = self.mock_post.call_args.kwargs["json"]["query"]
-        self.assertEqual(sent_query, oos_scenario["query"])
+        self.assertEqual(sent_query, "What is the capital of France?")
 
         warning_texts = [w.value for w in at.warning]
         self.assertTrue(
