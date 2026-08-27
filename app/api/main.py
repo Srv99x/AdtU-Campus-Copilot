@@ -37,6 +37,15 @@ from app.database.tickets import (
     update_ticket_status,
     Ticket,
 )
+from app.api.chroma_bootstrap import (
+    CANONICAL_COLLECTION_NAME,
+    bootstrap_chroma_on_startup,
+)
+
+# Canonical on-disk location of the persistent Chroma runtime. Unchanged from
+# the value get_collection() has always used -- named here so the startup
+# snapshot bootstrap and the request-path client open the exact same path.
+CHROMA_DB_PATH = ROOT / "data" / "processed" / "chroma_db"
 
 
 logger = logging.getLogger(__name__)
@@ -130,8 +139,8 @@ def get_db_path() -> Path:
 
 def get_collection() -> chromadb.Collection:
     if state.collection is None:
-        client = chromadb.PersistentClient(path=str(ROOT / "data" / "processed" / "chroma_db"))
-        state.collection = client.get_collection("adtu_knowledge")
+        client = chromadb.PersistentClient(path=str(CHROMA_DB_PATH))
+        state.collection = client.get_collection(CANONICAL_COLLECTION_NAME)
     return state.collection
 
 
@@ -142,6 +151,20 @@ def startup_event() -> None:
     db_path = get_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     initialize_database(db_path)
+
+    # Render Free has an ephemeral filesystem: the validated Chroma runtime is
+    # not in Git and is wiped on every deploy/restart. Restore it from the
+    # published, SHA-256-checksummed snapshot -- but ONLY when the canonical
+    # collection is not already present (a no-op locally, and on any restart
+    # where the disk survived). Never regenerates embeddings, never runs
+    # ingestion, never calls Gemini. A failure here never blocks startup; it
+    # surfaces through the unchanged /ready check.
+    load_dotenv(ENV_PATH)
+    bootstrap_chroma_on_startup(
+        CHROMA_DB_PATH,
+        url=os.getenv("ADTU_KB_SNAPSHOT_URL"),
+        sha256=os.getenv("ADTU_KB_SNAPSHOT_SHA256"),
+    )
 
 
 # ---------------------------------------------------------------------------
