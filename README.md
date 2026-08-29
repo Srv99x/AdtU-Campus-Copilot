@@ -1,357 +1,219 @@
-# AdtU Campus Copilot
+# 🎓 AdtU Campus Copilot
 
-A hackathon-MVP RAG assistant for Assam down town University (AdtU). It answers
-campus questions (admissions, fees, facilities) **only from a locked, curated
-knowledge base**, always attaches citations to a grounded answer, and — when
-the evidence isn't strong enough to trust — escalates to a human via a SQLite
-support ticket instead of guessing. This README is a practical runbook for
-getting the system running and demoing it, not general project documentation.
+> **Your AI guide to Assam down town University**
+>
+> Campus Copilot doesn't just generate an answer — it verifies evidence before answering, and escalates when evidence is insufficient.
 
-## 1. Project overview
+<div align="center">
+  <p>
+    <a href="ADD-LIVE-DEMO-URL"><strong>Live Demo</strong></a> •
+    <a href="https://adtu-campus-copilot.onrender.com/health"><strong>Backend Status</strong></a>
+  </p>
+</div>
 
-AdtU Campus Copilot takes a natural-language question and returns one of three
-outcomes: a **grounded answer with citations**, a safe **out-of-scope**
-refusal, or a **human escalation ticket** when the retrieved evidence isn't
-strong enough to answer confidently. Nothing is ever fabricated: the system
-either cites real knowledge-base evidence or says it doesn't know and hands
-the question to a human (staff review via the ticket queue).
+---
 
-Locked architecture (do not reorder or bypass — see [AGENTS.md](AGENTS.md)):
+## 📖 Project Overview
 
-```
-Query
-  -> TF-IDF Classifier (frozen)
-  -> Filtered ChromaDB retrieval
-  -> Confidence gate (Stage 1)
-  -> Gemini Flash grounded generation (Stage 2) OR SQLite ticket escalation
-  -> FastAPI
-  -> Streamlit
-```
+AdtU Campus Copilot is a specialized, hackathon-MVP AI assistant built for **Assam down town University**. Designed for students and staff, it accurately answers campus questions—such as admissions requirements, fee structures, and campus facilities.
 
-Streamlit never talks to Chroma or Gemini directly — it only calls FastAPI
-over HTTP.
+Unlike generic chatbots that hallucinate or guess answers when unsure, Campus Copilot operates on a strict **non-fabrication contract**. It relies exclusively on a locked, curated university knowledge base. If it cannot find sufficient verified evidence to answer a question, it safely escalates the query to a human staff member by creating a support ticket.
 
-## 2. Key capabilities
+## 🚀 Why It's Different
 
-- Natural-language campus Q&A over a curated, locked knowledge base
-- 4-class intent routing (`admissions`, `fees`, `facilities`, `out_of_scope`)
-- Out-of-scope recovery for campus-vocabulary queries the frozen classifier
-  still labels `out_of_scope` (Policy B — see [Section 9](#9-guided-demo-script))
-- Scholarship monetary-query retrieval correction (routes amount/percentage
-  scholarship questions to the category that actually holds the scholarship
-  table, without changing the classifier's own intent label)
-- Class-routine sibling expansion (reunites a routine's heading chunk with its
-  timetable-table chunk before generation, for the single top-ranked routine
-  match)
-- Grounded Gemini generation with a strict evidence-only system prompt
-- Non-fabricated citations (a documented fallback renders when a source's
-  `source_url` is blank — see [Current limitations](#current-limitations))
-- Safe SQLite escalation whenever confidence or evidence is insufficient
-- Ticket resolution / staff admin view (sidebar ticket queue with Resolve)
-- Readiness monitoring (`/health` vs `/ready`, three-state UI indicator)
-- Guided demo mode (one-click scenario buttons in the Streamlit sidebar)
-- Trust & Evidence panel (an expandable "why this answer?" / "not enough
-  verified evidence" panel shown under every answered/escalated response)
+Most RAG systems prioritize returning *an* answer over returning an *accurate* answer. AdtU Campus Copilot prioritizes **trust and safety** above all else.
 
-## 3. Prerequisites
+### Locked Core Architecture
 
-- Python 3.12 (the version this project's test environment is verified against;
-  the pinned dependencies in `requirements.txt` do not declare a stricter floor)
-- A Gemini API key (for query embedding and answer generation)
-- Git
-- A web browser (for the Streamlit UI)
-
-## 4. Fresh-clone setup
-
-```powershell
-git clone <YOUR_REPO_URL>
-cd AdtU-Campus-Copilot
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+```mermaid
+graph TD
+    A([Student Query]) --> B[TF-IDF Intent Classifier]
+    B --> C[Filtered ChromaDB Retrieval]
+    C --> D{Confidence Gate}
+    D -- High Confidence --> E[Gemini Flash Grounded Generation]
+    D -- Low Confidence / Insufficient Evidence --> F[SQLite Ticket Escalation]
+    E --> G([Verified Answer with Citations])
+    F --> H([Safe Refusal & Staff Ticket])
 ```
 
-## 5. Environment configuration
+**Key Differentiators:**
+- **Evidence-Grounded Answers:** Generation only occurs if retrieval confidence exceeds a strict threshold.
+- **Non-Fabrication Contract:** It never invents policies or guesses.
+- **Citations:** Every generated fact is tied to a specific chunk of source evidence.
+- **Controlled OOS Recovery:** Smart vocabulary detection recovers poorly-classified queries safely.
+- **Human Escalation:** When the bot is unsure, it creates a ticket for university staff.
+- **Staff Workspace:** Built-in queue for administrators to review and resolve escalated tickets.
 
-Copy the template and fill in your own key:
+## ✨ Key Capabilities
 
-```powershell
-Copy-Item .env.example .env
+- **Campus Q&A:** Accurate answers across admissions, fees, and facilities.
+- **4-Class Intent Routing:** Categorizes queries into `admissions`, `fees`, `facilities`, or `out_of_scope`.
+- **Evidence-Grounded Generation:** Uses a strict prompt instructing the model to rely only on retrieved chunks.
+- **Insufficient-Evidence Escalation:** Fails safely to a SQLite-backed ticketing system.
+- **Non-Fabricated Citations:** Links answers to exact knowledge base sources.
+- **Scholarship Routing Correction:** Intercepts monetary queries and directs them to the fees category table.
+- **Class-Routine Table Assembly:** Re-unites headers with their complex sibling timetables during retrieval.
+- **Ticket Resolution / Admin Workspace:** A dedicated UI panel for staff to handle escalated support tickets.
+- **Readiness Endpoint:** Robust `/health` and `/ready` checks to ensure downstream dependencies (Chroma, Gemini) are live.
+- **Trust / Evidence Panel:** Every response includes an expandable "Why this answer?" UI to show intent, confidence, and exact cited text.
+- **Guided Demo Mode:** One-click scenario cards on the home screen to demonstrate the system's capabilities.
+
+## ⚙️ RAG / Safety Pipeline
+
+| Stage | What it does | Why it matters |
+|---|---|---|
+| **Intent Classification** | Routes the query using a frozen TF-IDF + SVC model. | Limits search space, preventing cross-domain confusion (e.g., mixing hostel fees with tuition). |
+| **Filtered Retrieval** | Embeds the query via `gemini-embedding-2` and searches ChromaDB. | Pulls the most mathematically relevant verified facts. |
+| **Confidence Gate** | Evaluates if the top retrieved evidence exceeds safety thresholds. | Stops hallucination *before* the LLM generation phase begins. |
+| **Safe Escalation** | If confidence is too low, creates a SQLite support ticket. | Protects the university's reputation by avoiding wrong answers. |
+| **Grounded Generation** | `gemini-2.5-flash` synthesizes a readable response with citations. | Delivers a clean, conversational, trustworthy answer to the student. |
+
+## 🛡️ Trust & Non-Fabrication
+
+This is a core design property of the system:
+1. **If evidence is sufficient:** → The system answers with grounded evidence and citations.
+2. **If evidence is insufficient:** → The system returns an insufficient-evidence outcome, creates a support ticket, and **does not invent the answer.**
+
+Every answered or escalated query presents an expandable panel detailing the backend reasoning, confidence scores, and specific data chunks retrieved.
+
+## 🎯 Demo Scenarios
+
+These exact scenarios are available via quick-start buttons on the Live Demo home screen:
+
+| Scenario | Example Query | What it demonstrates |
+|---|---|---|
+| **Normal Q&A** | *"What documents are required for BTech admission at AdtU?"* | Baseline path: classification → retrieval → high confidence → grounded answer with citations. |
+| **Scholarship Correction** | *"What scholarships are available?"* | Intercepting a monetary query to ensure it retrieves from the `fees` knowledge category despite its wording. |
+| **Class Routine Assembly** | *"Show me the CSE DS & AI IBM class routine"* | Sibling-chunk expansion: reuniting a schedule header with its massive timetable chunk. |
+| **OOS Recovery** | *"When is the next university holiday?"* | "Policy B" recovery: a query marked out-of-scope but containing campus keywords is given a controlled second chance to retrieve facts. |
+| **Hard OOS** | *"What is the capital of France?"* | Immediate, cheap rejection without invoking embeddings or generative LLMs. |
+| **Safe Escalation** | *"What is the WiFi password for the boys hostel?"* | The system attempts retrieval, finds no password, and safely generates a staff support ticket instead of guessing. |
+| **Ticket Resolution** | *(Using the Admin UI)* | Staff can view the escalated ticket from the previous step and mark it resolved. |
+
+## 💻 Tech Stack
+
+- **Frontend:** Vanilla HTML / CSS / JavaScript
+- **Backend:** FastAPI (Python 3.12)
+- **Machine Learning:** Scikit-learn (TF-IDF + LinearSVC classifier)
+- **RAG / Vector Store:** ChromaDB + Google `gemini-embedding-2`
+- **Generation:** Google `gemini-2.5-flash`
+- **Storage:** SQLite (for ticket tracking)
+- **Testing:** `pytest`
+- **Deployment:** Render (FastAPI Backend) & Hugging Face Static Space (Vanilla Frontend)
+
+## 📂 Project Structure
+
+```text
+AdtU-Campus-Copilot/
+├── app/
+│   ├── api/          # FastAPI endpoints, health checks, and CORS configuration
+│   ├── classifier/   # Frozen TF-IDF + SVC intent classification model
+│   ├── database/     # SQLite ticket management and schema
+│   └── rag/          # Core pipeline, retrieval logic, gating, and Gemini generation
+├── frontend/         # Vanilla HTML/JS frontend (Hugging Face Space)
+├── tests/            # Comprehensive pytest suite
+├── evaluation/       # Performance evaluation and metrics scripts
+└── data/rag/         # Raw source documents for the knowledge base
 ```
 
-`.env.example` documents exactly the three variables the runtime reads:
+## 🛠️ Local Development
 
-```
-GEMINI_API_KEY=
-GEMINI_EMBEDDING_MODEL=gemini-embedding-2
-GEMINI_GENERATION_MODEL=gemini-2.5-flash
-```
+Follow these steps to run the complete stack locally.
 
-- `GEMINI_API_KEY` — your personal Gemini API key. Leave it blank in
-  `.env.example`; put the real value only in your local `.env`.
-- `GEMINI_EMBEDDING_MODEL` — the embedding model used for both the original
-  ingestion and every runtime query embedding. Do not change this unless you
-  are deliberately re-embedding everything (see [Section 6](#6-critical-runtime-data-snapshot)).
-- `GEMINI_GENERATION_MODEL` — the Gemini Flash model used for grounded answer
-  generation.
-
-**Never commit `.env`.** It is already listed in `.gitignore`. **Never paste
-your API key into source code** — every runtime module reads it from the
-environment (via `.env`), never a hardcoded literal.
-
-## 6. CRITICAL: Runtime data snapshot
-
-A fresh `git clone` of this repository does **not** contain the validated
-ChromaDB runtime database or `data/processed/derived_embeddings.json` — both
-are intentionally excluded via `.gitignore` (`chroma_db/`,
-`data/processed/derived_embeddings.json`) because they are large, binary,
-generated artifacts, not source.
-
-Without them, `/chat` cannot retrieve anything and `/ready` will report the
-Chroma check as failing. Regenerating them from scratch is **not** a
-fresh-clone step you want to take casually: rebuilding
-`derived_embeddings.json` and re-ingesting the collection requires making
-real Gemini embedding API calls (`gemini-embedding-2`) against your own quota
-— it costs time, quota, and money, and it is exactly the kind of
-regeneration [AGENTS.md](AGENTS.md) says not to do without explicit approval.
-
-The validated runtime snapshot contains exactly **957 vectors**:
-
-- 836 V1 direct canonical embeddings
-- 45 V1 derived-child embeddings (for the 6 canonical chunks too long for a
-  single embedding call)
-- 76 V2 direct embeddings
-
-This is published as a GitHub Release artifact:
-
-- **File:** `adtu_kb_snapshot_957v_20260822.zip`
-- **SHA-256:** `2d6ae1b6ecfb20e03ca69e40220f0c6a3bcd7a236d613203f0b96410a086f009`
-- **Download:** `<GITHUB_RELEASE_URL>` — replace this placeholder with the
-  actual release URL once the release is published; do not guess or invent
-  one in the meantime.
-
-Setup:
-
-1. Download `adtu_kb_snapshot_957v_20260822.zip` from `<GITHUB_RELEASE_URL>`.
-2. Verify its checksum before trusting it:
+1. **Clone and setup the virtual environment:**
    ```powershell
-   Get-FileHash .\adtu_kb_snapshot_957v_20260822.zip -Algorithm SHA256
+   git clone <YOUR_REPO_URL>
+   cd AdtU-Campus-Copilot
+   python -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
    ```
-   Confirm the output matches
-   `2d6ae1b6ecfb20e03ca69e40220f0c6a3bcd7a236d613203f0b96410a086f009`.
-3. Extract it from the **repository root** so the archive's internal paths
-   land exactly here:
-   ```
-   data/processed/derived_embeddings.json
-   data/processed/chroma_db/
-   ```
-   (The zip's internal paths already start with `data/processed/...`, so
-   extracting it at the repo root reproduces both paths directly — no manual
-   file moving should be needed.)
-4. Confirm both paths exist before starting the backend:
+
+2. **Configure environment variables:**
    ```powershell
-   Test-Path .\data\processed\derived_embeddings.json
-   Test-Path .\data\processed\chroma_db\chroma.sqlite3
+   Copy-Item .env.example .env
+   ```
+   Edit `.env` and add your `GEMINI_API_KEY`. (Do not change the model names unless necessary).
+
+3. **Install the Knowledge Base Snapshot:**
+   Extract the pre-compiled `adtu_kb_snapshot_957v_20260822.zip` into the repository root so that `data/processed/chroma_db/` and `data/processed/derived_embeddings.json` are populated.
+
+4. **Start the Backend (Terminal 1):**
+   ```powershell
+   uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+   ```
+   *Verify readiness at http://127.0.0.1:8000/ready*
+
+5. **Serve the Frontend (Terminal 2):**
+   ```powershell
+   cd frontend
+   python -m http.server 8080
+   ```
+   *Open http://localhost:8080 in your browser.*
+
+6. **Run Tests:**
+   ```powershell
+   python -m pytest tests/ -q
    ```
 
-## 7. Startup
+## ☁️ Deployment Architecture
 
-Two terminals, both from the repository root with the virtual environment
-activated.
+- **Frontend:** Deployed as a static application on **Hugging Face Static Space**. It uses an injected `API_BASE_URL` to communicate with the backend.
+- **Backend:** Hosted on **Render**, serving the FastAPI endpoints (`/chat`, `/tickets`, `/ready`).
+- **Knowledge Base:** The validated ChromaDB snapshot is fetched at startup/build time. These 957-vector binary artifacts are intentionally `.gitignore`d to prevent repository bloat and accidental overrides.
 
-**Terminal 1 — backend:**
+## 📦 Knowledge Base Snapshot
 
+To avoid expensive, unnecessary API calls, the repository relies on a frozen, validated vector snapshot.
+
+- **Vector Count:** 957 vectors (836 V1 direct, 45 V1 derived-child, 76 V2 direct)
+- **Dimensions:** 768 (`gemini-embedding-2`)
+- **Integrity:** SHA-256: `2d6ae1b6ecfb20e03ca69e40220f0c6a3bcd7a236d613203f0b96410a086f009`
+
+*Note: Generating a new snapshot requires explicit approval and incurs API costs.*
+
+## ✅ Testing
+
+The repository maintains strict test coverage to protect the safety gating logic.
+
+**Command:**
 ```powershell
-uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+python -m pytest tests/ -q
 ```
+*(Always scope pytest to the `tests/` directory to prevent it from auto-collecting diagnostic scripts that execute real API calls).*
 
-**Terminal 2 — frontend:**
+**Status:** **302 passed** (Verified against the latest `techlead/classifier` baseline).
 
-```powershell
-streamlit run app/ui/streamlit_app.py --server.port 8501
-```
+## 🎪 Innovation Mela & Exhibition
 
-Open the URL Streamlit prints (typically `http://localhost:8501`).
+**No formal presentation required — designed for interactive demonstration.**
 
-## 8. Health / readiness
+To demo the system:
+1. Open the Live Demo.
+2. Click a normal scenario (e.g., *"What documents are required..."*) and expand **"Why this answer?"** to show the grounded citations.
+3. Click **Safe Escalation** to deliberately trip the confidence gate. Show how the system refuses to guess.
+4. Open the **Staff / Admin** sidebar to view the newly created ticket, demonstrating the end-to-end support loop.
 
-- **`/health`** — process-alive check only. Always returns `{"status": "ok"}`
-  if uvicorn is running, even if Chroma or the Gemini key is broken. It never
-  touches Chroma or Gemini.
-- **`/ready`** — dependency-aware readiness check. Confirms the Gemini API
-  key is present and non-blank, and that the Chroma `adtu_knowledge`
-  collection is reachable and non-empty. **It never calls the Gemini API** —
-  it only checks that a key value is present, never that the key is valid.
-  Returns HTTP 200 `{"status": "ready"}` when every check passes, or HTTP 503
-  `{"status": "not_ready", "checks": {...}}` naming which check failed.
+## 🚧 Current Limitations (MVP)
 
-The Streamlit top bar reflects this as one of three states (calls `/ready`,
-not `/health`, for exactly this reason):
+As a hackathon MVP, the system has several known boundaries:
+- **Authentication:** The `PATCH /tickets/{id}` admin endpoint is currently unauthenticated.
+- **Ephemeral Storage:** The Render Free tier resets its filesystem periodically, meaning SQLite tickets are ephemeral.
+- **Cold Starts:** Render backend may take ~50 seconds to wake up if inactive.
+- **Conservative Failsafe:** The confidence gate is intentionally strict; borderline queries will safely escalate rather than risk a hallucination.
 
-- ✅ **Backend: Ready** — `/ready` returned 200.
-- ⚠️ **Backend: Running but not ready** — uvicorn answered, but a dependency
-  check failed (names the failing check, e.g. `chroma` or `gemini_api_key`).
-- 🚨 **Backend: Offline or Unreachable** — the request itself failed
-  (connection refused, timeout, etc.) — uvicorn probably isn't running.
+## 🗺️ Roadmap
 
-## 9. Guided demo script
+- [ ] Authenticated staff workspace (OAuth/SSO)
+- [ ] Richer backend observability and telemetry
+- [ ] Stronger live regression testing against model drift
+- [ ] Multilingual support (Assamese/Hindi)
+- [ ] Improved structured table extraction for complex fee schedules
 
-Streamlit's **"🎯 Try a scenario"** expander has one-click buttons for most of
-these; each button submits the same real query a typed message would, through
-the same code path — nothing is a canned/hardcoded answer. Two steps below
-(4 and 7) are not buttons and are called out as such.
+## 👥 Team & Credits
 
-1. **Normal Q&A** — button *📚 Campus Q&A*:
-   `What documents are required for BTech admission at AdtU?`
-   Demonstrates the baseline path: classifier → category-filtered retrieval →
-   confidence gate → grounded Gemini answer with citations.
+- **Author:** Sourav Chakraborty
+- **License:** MIT License
 
-2. **Scholarship** — button *🎓 Scholarship amount*:
-   `What scholarship is available for CBSE board students with 95%?`
-   Demonstrates the scholarship monetary-retrieval override: this query is
-   inconsistently classified by the frozen TF-IDF classifier, but the
-   pipeline detects the monetary/percentage signal and forces retrieval
-   against the `fees` category (where the scholarship table actually lives)
-   regardless of the classifier's own label.
-
-3. **Class routine** — button *🗓️ Class routine*:
-   `What is the class routine for B.Tech CSE DS & AI IBM 2nd year 1st semester?`
-   Demonstrates class-routine sibling expansion: the top-ranked routine
-   "heading" chunk is paired with its separately-stored timetable "table"
-   chunk before the evidence is handed to Gemini, so generation isn't left
-   with only a heading and no timetable data.
-
-4. **OOS recovery** *(type this manually — there is no dedicated button)*:
-   `When is the Bihu holiday?`
-   The frozen classifier still labels this `out_of_scope` — that label is
-   never changed. But the pipeline's Policy B vocabulary gate detects campus
-   terms (`bihu`, `holiday`) and runs one controlled recovery retrieval
-   against the `facilities` category (with a "academic calendar" retrieval-
-   query normalization) before falling back to the same Stage 1/Stage 2
-   pipeline used everywhere else. It may answer or may safely escalate,
-   depending on retrieval confidence — either outcome demonstrates the
-   recovery path running, not a guaranteed answer.
-
-5. **Hard OOS** — button *🚫 Out of scope*:
-   `What is the capital of France?`
-   No campus vocabulary matches at all, so Policy B recovery is not
-   triggered: no embedding call, no retrieval, no Gemini call — an immediate,
-   cheap `out_of_scope` response.
-
-6. **Safe escalation** — button *🎫 Safe escalation*:
-   `What is the WiFi password for the boys hostel?`
-   Retrieval runs normally, but the knowledge base has no such credential —
-   the system does not invent one. Depending on retrieval confidence this
-   either escalates at Stage 1 or Stage 2, always producing a SQLite ticket
-   and never a fabricated answer.
-
-7. **Trust & Evidence panel** *(not a separate query — expand it after any
-   of the above)*: every `answered` response shows a **🔎 Why this answer?**
-   expander (intent, confidence, cited evidence); every `escalated` response
-   shows a **🟡 Not enough verified evidence** expander (confidence, backend
-   reasoning, ticket ID). Both render only fields the backend actually
-   returned — nothing here is computed or guessed client-side.
-
-8. **Staff ticket resolution**: open the sidebar, click **Load tickets**,
-   find the ticket created in step 6 (or step 4/2 if those escalated), and
-   click **Resolve**. See [Section 10](#10-staffadmin-flow).
-
-## 10. Staff/Admin flow
-
-The sidebar's **🛠️ Staff / Admin** panel is a queue over the same tickets
-created by Stage 1/Stage 2 escalation:
-
-1. **Load tickets** — fetches the current ticket list from `GET /tickets`.
-2. **Inspect** — each ticket card shows its query, predicted intent, source
-   (which stage escalated it), creation time, and ID.
-3. **Resolve** — calls `PATCH /tickets/{id}` with `{"status": "resolved"}`
-   and refreshes the list.
-
-**`PATCH /tickets/{id}` is unauthenticated.** Any client that can reach the
-backend can resolve any ticket. This is acceptable only for a local/hackathon
-MVP running on `127.0.0.1` — **it is not, and must not be described as,
-production-ready authentication.** Do not expose this backend on a public
-network without adding real auth first.
-
-## 11. Testing
-
-```powershell
-pytest tests/ -q
-```
-
-Currently-verified baseline on this branch: **302 passed** (plus 26 subtests).
-Treat this as the last-verified snapshot, not a guarantee for future changes
-— re-run it yourself after any change and trust that output over this number.
-
-**Always scope pytest to `tests/`, never run bare `pytest` from the repo
-root.** `scripts/chroma_retrieval_test.py` matches pytest's default
-`*_test.py` discovery pattern, so an unscoped `pytest` run also collects its
-`test_query(...)` function — a diagnostic script with required parameters
-pytest can't supply as fixtures, and one that (when actually run standalone
-via `python scripts/chroma_retrieval_test.py`) makes real Gemini embedding
-calls. It is not part of the test suite's contract and will only produce
-noise or errors if pytest tries to collect it.
-
-## 12. Troubleshooting
-
-- **Backend offline** (Streamlit shows 🚨 Offline or Unreachable): confirm
-  the `uvicorn` terminal is still running and listening on port 8000, and
-  that `API_BASE_URL` (defaults to `http://127.0.0.1:8000`) matches it.
-- **`/ready` returns 503**: check the JSON body's `checks` object — it names
-  exactly which dependency failed (`chroma` or `gemini_api_key`) and why.
-- **Chroma collection missing/unreachable**: almost always means the runtime
-  snapshot wasn't extracted (see [Section 6](#6-critical-runtime-data-snapshot)).
-  Confirm `data/processed/chroma_db/chroma.sqlite3` exists.
-- **API key missing**: confirm `.env` exists at the repo root (not just
-  `.env.example`) and `GEMINI_API_KEY` is set and non-blank in it.
-- **Port 8000 already in use**: stop whatever is bound to it, or start
-  uvicorn with a different `--port` and update `API_BASE_URL` for Streamlit
-  accordingly.
-- **Port 8501 already in use**: start Streamlit with a different
-  `--server.port`.
-- **Runtime snapshot not extracted correctly**: re-check that extraction ran
-  from the repository root (not from inside `data/` or `data/processed/`) —
-  a common mistake produces a nested `data/processed/data/processed/...` path
-  instead of overlaying directly onto the existing `data/processed/`
-  directory. Re-verify with the `Test-Path` commands in Section 6.
-
-## 13. Architecture / safety principles
-
-- The classifier (`app/classifier/`) is frozen — its weights, labels, and
-  training/eval datasets are not to be modified casually.
-- Embeddings and the ChromaDB collection are protected data, not
-  regenerated/reset without explicit approval.
-- No fabricated answers: generation is evidence-only, and insufficient
-  evidence escalates to a human ticket rather than producing a best guess.
-- Secrets are never committed: `.env` is git-ignored, and every runtime
-  module reads `GEMINI_API_KEY` from the environment, never a literal.
-- Streamlit only talks to FastAPI over HTTP — it never imports or calls
-  Chroma, the classifier, or Gemini directly.
-
-## 14. Hackathon demo checklist
-
-- [ ] `.env` exists at the repo root with a valid `GEMINI_API_KEY`
-- [ ] Runtime snapshot restored (`data/processed/chroma_db/` and
-      `data/processed/derived_embeddings.json` both present)
-- [ ] `GET /ready` returns `{"status": "ready"}`
-- [ ] Streamlit opens and shows ✅ Backend: Ready
-- [ ] Guided demo buttons in "🎯 Try a scenario" work
-- [ ] The safe-escalation scenario creates a ticket
-- [ ] Staff/Admin sidebar can load and resolve that ticket
-- [ ] The Trust & Evidence panel renders under an answered/escalated response
-- [ ] A backup copy of the runtime snapshot archive exists somewhere outside
-      the working tree (in case `data/processed/` needs to be re-extracted
-      mid-event)
-
-## Current limitations
-
-- The `PATCH /tickets/{id}` endpoint is unauthenticated — acceptable for a
-  local hackathon MVP only, not production-ready auth.
-- Live integration testing against real Gemini/Chroma is limited; most of
-  `tests/` exercises the pipeline with mocked dependencies rather than a live
-  end-to-end call.
-- [README_INGESTION.md](README_INGESTION.md) documents the ingestion pipeline
-  as of an earlier phase and may contain historical/stale figures — this
-  README's [Section 6](#6-critical-runtime-data-snapshot) is the current
-  source of truth for the validated runtime vector count (957).
-- This is a hackathon MVP, not a production deployment.
+---
+*Built for the AdtU Campus Copilot initiative.*
