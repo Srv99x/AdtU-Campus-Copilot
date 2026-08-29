@@ -1,0 +1,6 @@
+query,true_label,predicted_label
+pcm main kitne percentage chahiye,admissions,out_of_scope
+caution money return policy kya hai,fees,out_of_scope
+admission k time kitna pay karna hoga,fees,admissions
+virat kohli total centuries,out_of_scope,fees
+kal nifty banknifty kya hoga,out_of_scope,admissions

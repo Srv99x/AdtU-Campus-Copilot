@@ -1,0 +1,7 @@
+filename,category,source_type,source_url,published_date,effective_date,verification_status,notes
+fees.pdf,fees,official_pdf,,unknown,2026-27,trusted_official_source,"Fee structure for session 2026-27. Created from Excel, modified 2026-03-05. 4 pages covering all faculties."
+class_routine.pdf,facilities,official_pdf,,unknown,2026-27,trusted_official_source,"Class timetables for Faculty of Computer Technology. Created from PowerPoint, modified 2026-08-08. 20 pages, only B.Tech CSE variants extracted."
+academic_calendar.pdf,facilities,official_pdf,,2026-07-28,2026-27,trusted_official_source,"Academic calendar for FoCT odd semester 2026-27. Created by 'Lenovo' user via MS Word, dated 2026-07-20. 2 pages."
+holiday_calendar.pdf,facilities,official_pdf,,2026-06-22,2026-27,trusted_official_source,"Student holiday list 2026-27 with academic council meeting dates and semester schedule. Created by 'Dy Registrar Academi' via MS Word 2013. 5 pages."
+scholarships.pdf,fees,official_pdf,,unknown,2025-26,trusted_official_source,"Scholarship categories and eligibility for session 2025-26. Modified 2025-03-25. 2 pages. Second page has extraction quality issues."
+gemini_helpdesk_grievance_research.md,research_index,research_report,,unknown,N/A,not_authoritative,"Deep research report on AdtU helpdesk/grievance/support systems. NOT an authoritative institutional source. Use as discovery index only. Do NOT chunk or embed."

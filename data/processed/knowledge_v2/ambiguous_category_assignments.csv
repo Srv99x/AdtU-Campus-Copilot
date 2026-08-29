@@ -1,0 +1,6 @@
+source_file,chunk_id_pattern,assigned_category,natural_category,reason
+fees.pdf,v2_fees_*,fees,fees,Direct fee structure document. Clean mapping to 'fees' category.
+scholarships.pdf,v2_scholarships_*,fees,scholarship,"Scholarships are financial aid mechanisms closely related to fees. 'fees' is the closest existing intent category, but the natural topic is 'scholarship'."
+academic_calendar.pdf,v2_academic_calendar_*,facilities,academic_calendar,"Academic calendar is an institutional resource/facility. 'facilities' is the catch-all for non-admissions/non-fees content. Natural topic is 'academic_calendar'."
+holiday_calendar.pdf,v2_holiday_calendar_*,facilities,holiday_calendar,"Holiday calendar is an institutional resource. 'facilities' is the catch-all. Natural topic is 'holiday_calendar'."
+class_routine.pdf,v2_class_routine_*,facilities,class_routine,"Class routine/timetable is an academic facility/resource. 'facilities' is the catch-all. Natural topic is 'class_routine'."

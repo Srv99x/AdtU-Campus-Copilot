@@ -1,0 +1,13 @@
+query,true_label,predicted_label
+seat allotment result kahan dekhein,admissions,fees
+bsc waiting list kab clear hogi,admissions,facilities
+kya mujhe document verification ke liye campus aana padega,admissions,facilities
+mba personal interview shortlist,admissions,facilities
+late fine grace period kitne din ka hai,fees,facilities
+cafeteria food options,facilities,admissions
+first year ki classes kab start hongi,facilities,admissions
+virat kohli total centuries,out_of_scope,fees
+assam ki sabse unchi choti,out_of_scope,facilities
+kal nifty banknifty kya hoga,out_of_scope,admissions
+Python code for sorting an array,out_of_scope,admissions
+write a c++ program to reverse array,out_of_scope,admissions

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AdtU Campus Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <!--
+        Real ADTU logo asset is not yet available anywhere in this
+        repository (verified by search). Placeholder path per instructions
+        -- the real asset still needs to be copied into frontend/assets/.
+        onerror swaps to a text wordmark instead of a broken-image icon.
+      -->
+      <img id="brand-logo" class="brand-logo" src="assets/adtu-logo.png" alt="Assam Down Town University" hidden>
+      <div id="brand-wordmark" class="brand-wordmark">
+        <span class="brand-mark">AdtU</span>
+        <span class="brand-sub">Campus Copilot</span>
+      </div>
+    </div>
+
+    <button id="new-chat-btn" type="button" class="btn btn-primary btn-block">➕ New Chat</button>
+
+    <div class="nav-label">Staff workspace</div>
+    <button id="nav-admin-btn" type="button" class="btn btn-secondary btn-block">🛠️ Staff / Admin</button>
+    <button id="nav-chat-btn" type="button" class="btn btn-secondary btn-block" hidden>← Back to chat</button>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <div id="status-pill" class="status-pill" role="status" aria-live="polite"></div>
+      <button id="theme-toggle" type="button" class="icon-btn" aria-label="Toggle light/dark theme">🌓</button>
+    </header>
+
+    <section id="screen-chat" class="screen">
+      <div id="home-hero" class="home-hero"></div>
+
+      <div id="chat-transcript" class="chat-transcript" role="log" aria-live="polite"></div>
+
+      <div class="composer">
+        <p class="trust-caption">🎓 Answers are grounded in verified university information. If evidence is insufficient, Campus Copilot won't guess.</p>
+        <form id="chat-form" class="chat-form">
+          <input id="chat-input" type="text" class="chat-input" placeholder="Ask anything about AdtU..." autocomplete="off">
+          <button type="submit" class="send-btn" aria-label="Send message">➤</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="screen-admin" class="screen" hidden>
+      <div class="admin-header">
+        <div>
+          <h1 class="admin-title">Support tickets</h1>
+          <p class="admin-sub">Review questions that Campus Copilot could not safely answer.</p>
+        </div>
+        <button id="load-tickets-btn" type="button" class="btn btn-secondary">🔄 Load tickets</button>
+      </div>
+
+      <div class="mvp-notice">
+        ⚠️ <strong>Hackathon MVP:</strong> this ticket workspace has no authentication. Anyone with this
+        page's URL can view and resolve tickets. Do not treat this as a secured staff-only surface.
+      </div>
+
+      <div id="admin-notice" class="admin-banner admin-notice" hidden></div>
+      <div id="admin-error" class="admin-banner admin-error" hidden></div>
+
+      <div id="admin-stats" class="admin-stats"></div>
+      <div id="admin-tickets" class="admin-tickets"></div>
+    </section>
+  </main>
+</div>
+
+<script type="module" src="js/main.js"></script>
+<script>
+  // Graceful logo fallback: show the real asset if it loads, otherwise the
+  // text wordmark. Kept out of the ES modules since it must run before the
+  // image's own error event fires, and does not depend on backend state.
+  (function () {
+    var logo = document.getElementById("brand-logo");
+    var wordmark = document.getElementById("brand-wordmark");
+    logo.addEventListener("load", function () {
+      logo.hidden = false;
+      wordmark.hidden = true;
+    });
+    logo.addEventListener("error", function () {
+      logo.hidden = true;
+      wordmark.hidden = false;
+    });
+  })();
+</script>
+</body>
+</html>

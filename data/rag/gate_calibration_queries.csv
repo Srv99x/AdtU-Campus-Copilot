@@ -1,0 +1,51 @@
+query,calibration_label,expected_intent,expected_evidence,known_chunk_id,notes
+how many seats are available in the H Block boys hostel,answerable,facilities,H Block; 152,hostel-details-html_33,ANCHOR — rewording of validated retrieval test #1
+H Block hostel kitne students ko accommodate kar sakta hai,answerable,facilities,H Block; 152,hostel-details-html_33,ANCHOR — Hinglish rewording of validated retrieval test #1
+total fee structure for Bachelor of Computer Application with IBM collaboration,answerable,fees,BCA; IBM; 520000,v2_fees_6,ANCHOR — rewording of validated retrieval test #2
+BCA IBM programme ka poora fees kitna hai,answerable,fees,BCA; IBM; 520,v2_fees_6,ANCHOR — Hinglish rewording of validated retrieval test #2
+which scholarship gives 100 percent waiver to CBSE board toppers,answerable,admissions,95%; 100% SCHOLARSHIP,v2_scholarships_0,ANCHOR — rewording of validated retrieval test #3; 95% CBSE scholarship
+class schedule for B.Tech CSE Data Science and AI IBM second year first semester,answerable,facilities,Btech CSE [DS & AI]; IBM; 2nd year 1st semester,v2_class_routine_14,ANCHOR — rewording of validated retrieval test #4
+holidays that can be changed by the Assam government,answerable,facilities,Dates of Holidays might change; Govt. of Assam,v2_holiday_calendar_2,ANCHOR — rewording of validated retrieval test #5
+how many boys hostel blocks are there in AdtU campus,answerable,facilities,hostel; block; boys,hostel-details-html_33,V1 KB contains hostel block details
+AdtU ke boys hostel mein kitne blocks hain,answerable,facilities,hostel; block,hostel-details-html_33,Hinglish; hostel block count is in V1 KB
+what is the scholarship percentage for students with 90 percent marks from CBSE,answerable,admissions,90%; scholarship,v2_scholarships_1,V2 scholarships chunk covers multiple slab levels
+fee for B.Tech CSE first year,answerable,fees,B.Tech; CSE; fee,v2_fees_0,V2 fees chunk covers B.Tech fee table
+kya AdtU mein MBA course available hai,answerable,admissions,MBA; management,admissions-html_0,V1 admissions pages list MBA; expecting admissions category chunks
+what are the available engineering programmes at AdtU,answerable,admissions,engineering; B.Tech; programme,admissions-html_0,V1 KB has programme listings
+warden name for A Block girls hostel,answerable,facilities,warden; A Block; girls,hostel-details-html_33,V1 hostel chunk has warden details per block
+how to reach AdtU campus from Guwahati city,answerable,facilities,Guwahati; transport; route,transport-html_0,V1 KB contains transport/location details
+AdtU academic calendar mein summer vacation kab hai,answerable,facilities,summer; vacation; academic calendar,v2_academic_calendar_0,V2 academic calendar covers vacation period
+B.Tech CSE AI 3rd year routine kaisa hai,answerable,facilities,CSE; AI; 3rd year,v2_class_routine_20,V2 class_routine chunks cover 3rd year schedules
+national holidays listed for AdtU 2024,answerable,facilities,national holiday; 2024,v2_holiday_calendar_1,V2 holiday_calendar covers national holidays list
+fee structure for MCA programme at AdtU,answerable,fees,MCA; fee,v2_fees_3,V2 fees chunk covers MCA
+total number of hostel blocks and their names at AdtU,answerable,facilities,hostel; block; A Block; B Block,hostel-details-html_33,V1 hostel details enumerate all blocks
+exam schedule for first semester 2024,answerable,facilities,exam; semester; schedule,v2_academic_calendar_1,Academic calendar V2 chunk covers exam schedules
+scholarship for students with disability,answerable,admissions,scholarship; differently abled; disability,v2_scholarships_1,V2 scholarships includes differently-abled slab
+which course has the highest seat intake at AdtU,answerable,admissions,seat; intake; programme,admissions-html_0,V1 admissions pages have intake data
+AdtU mein BBA kitne saal ka course hai,answerable,admissions,BBA; year; duration,admissions-html_0,V1 KB has BBA programme details; 3 years
+AdtU ki library mein kitni books hain,answerable,facilities,library; books; collection,library-html_0,V1 KB has library size and collection data
+hostel and mess fee per semester,knowledge_gap,fees,,,"Gap from knowledge_gaps.csv: exact hostel/mess fee amounts are not in trusted KB sources"
+exact timing for campus shuttle departure from Jalukbari,knowledge_gap,facilities,,,"Gap from knowledge_gaps.csv: 12 routes verified but exact schedule times are volatile and undocumented"
+WiFi password for boys hostel,knowledge_gap,facilities,,,"Gap: campus network credentials are not a public KB item; A-Connect portal required"
+how to reset A-Connect student portal password,knowledge_gap,facilities,,,"Gap from knowledge_gaps.csv: IT recovery pathway is behind portal firewall; not in trusted KB"
+campus doctor timing and emergency ambulance number,knowledge_gap,facilities,,,"Gap from knowledge_gaps.csv: triage/ambulance contact is missing from public KB sources"
+guest visitor rules and timings for hostel blocks,knowledge_gap,facilities,,,"Gap from knowledge_gaps.csv: visitor/curfew rules are absent from public sources"
+migration certificate fee and application process,knowledge_gap,admissions,,,"Gap from knowledge_gaps.csv: CoE process not in primary sources"
+exam re-evaluation procedure at AdtU,knowledge_gap,admissions,,,"Gap from knowledge_gaps.csv: re-evaluation steps and fees are unpublished in KB"
+lost student ID card replacement procedure,knowledge_gap,facilities,,,"Gap from knowledge_gaps.csv: replacement procedure is undocumented in trusted KB"
+Pratibha Protsahan Yojana scholarship eligibility criteria,knowledge_gap,admissions,,,"Gap from knowledge_gaps.csv: exact criteria and amount not verified in trusted KB"
+PhD Research Entrance Test date for 2025,knowledge_gap,admissions,,,"Gap from knowledge_gaps.csv: RET dates are volatile and change yearly; not in static KB"
+exact salary of AdtU faculty members,knowledge_gap,admissions,,,"Out-of-scope-for-student: not a student-facing KB item; no admissions/facility data covers this"
+complaint resolution timeline at AdtU grievance cell,knowledge_gap,admissions,,,"Gap from knowledge_gaps.csv: 7-working-day SLA not independently verified from official URL in KB"
+ATM on campus nearest to hostel blocks,knowledge_gap,facilities,,,"KB covers campus map/layout at high level; specific ATM location not present in trusted sources"
+placement package statistics for 2024 batch,knowledge_gap,admissions,,,"Placement records are not part of the current V1/V2 trusted KB sources"
+what hostel facilities are available for disabled students,boundary,facilities,hostel; facility; block,"hostel-details-html_33","Chunks describe hostel blocks and amenities; may not explicitly address accessibility needs. Over-trust risk."
+how much does the campus bus from Jalukbari cost per month,boundary,fees,transport; bus; route,"transport-html_0","KB has bus routes (12 routes) but not price per month; retrieval will return route info instead of cost"
+which subjects are taught in B.Tech CSE second year,boundary,facilities,CSE; 2nd year; subject,"v2_class_routine_14","Routine chunks show class schedule but not syllabus; retrieved content is related but not the actual answer"
+is there any provision for early registration before counselling,boundary,admissions,registration; counselling; date,"admissions-html_0","Admissions chunks may list counselling but not early registration provisions specifically"
+can I get a fee instalment plan for hostel charges,boundary,fees,hostel; fee; instalment,"v2_fees_6","Fees chunks may cover programme fees but not instalment plans for hostel charges"
+what clubs and societies can I join at AdtU,boundary,facilities,student; society; club,"activities-html_0","V1 may have some co-curricular info but not a structured clubs directory; retrieval will be partial"
+kya AdtU mein night canteen available hai,boundary,facilities,canteen; hostel; food,"hostel-details-html_33","Hostel chunk may mention mess but not specifically night canteen hours; boundary case"
+what is the process to apply for a single room in the hostel,boundary,facilities,hostel; room; single,"hostel-details-html_33","Hostel chunk describes block types and capacity; not the room allocation application process"
+how can I transfer from one hostel block to another,boundary,facilities,hostel; block; transfer,"hostel-details-html_33","Hostel chunk has block names/wardens; not the administrative transfer procedure"
+what is the minimum attendance required to sit in exams,boundary,admissions,attendance; exam; minimum,"admissions-html_0","V1 KB has general rules; attendance requirement may be in regulations chunks but not comprehensive"
