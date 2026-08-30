@@ -66,7 +66,7 @@ graph TD
 | **Filtered Retrieval** | Embeds the query via `gemini-embedding-2` and searches ChromaDB. | Pulls the most mathematically relevant verified facts. |
 | **Confidence Gate** | Evaluates if the top retrieved evidence exceeds safety thresholds. | Stops hallucination *before* the LLM generation phase begins. |
 | **Safe Escalation** | If confidence is too low, creates a SQLite support ticket. | Protects the university's reputation by avoiding wrong answers. |
-| **Grounded Generation** | `gemini-2.5-flash` synthesizes a readable response with citations. | Delivers a clean, conversational, trustworthy answer to the student. |
+| **Grounded Generation** | `gemini-3.6-flash` synthesizes a readable response with citations. | Delivers a clean, conversational, trustworthy answer to the student. |
 
 ## 🛡️ Trust & Non-Fabrication
 
@@ -78,17 +78,30 @@ Every answered or escalated query presents an expandable panel detailing the bac
 
 ## 🎯 Demo Scenarios
 
-These exact scenarios are available via quick-start buttons on the Live Demo home screen:
+Every quick-start button on the Live Demo home screen was verified against the
+live 957-vector `adtu_knowledge` collection before being listed: classifier
+intent, retrieval category, the chunk that actually holds the answer, and the
+Stage 1 gate margin against `GATE_THETA_D = 0.275`. The supporting chunk id for
+each one is documented inline in `frontend/js/render-home.js`.
 
 | Scenario | Example Query | What it demonstrates |
 |---|---|---|
-| **Normal Q&A** | *"What documents are required for BTech admission at AdtU?"* | Baseline path: classification → retrieval → high confidence → grounded answer with citations. |
-| **Scholarship Correction** | *"What scholarships are available?"* | Intercepting a monetary query to ensure it retrieves from the `fees` knowledge category despite its wording. |
-| **Class Routine Assembly** | *"Show me the CSE DS & AI IBM class routine"* | Sibling-chunk expansion: reuniting a schedule header with its massive timetable chunk. |
-| **OOS Recovery** | *"When is the next university holiday?"* | "Policy B" recovery: a query marked out-of-scope but containing campus keywords is given a controlled second chance to retrieve facts. |
+| **Admissions eligibility** | *"What is the minimum eligibility for B.Sc. Microbiology at AdtU?"* | Baseline path: classification → retrieval → high confidence → grounded answer with citations. |
+| **Programme fees** | *"What is the total programme fee for B.Pharm at AdtU?"* | Reading a specific row out of the official fee-structure PDF chunks. |
+| **Scholarship Correction** | *"What scholarship is available for CBSE board students with 95%?"* | Intercepting a monetary query to ensure it retrieves from the `fees` knowledge category despite its wording. |
+| **Hostel facts** | *"What are the names of the girls hostel blocks at AdtU?"* | Answering the hostel facts the KB really holds (block names, seat capacity) rather than amenities it does not. |
+| **Class Routine Assembly** | *"Which room is the B.Tech CSE DS and AI IBM Section A first semester class held in?"* | Pulling one explicit fact out of a timetable whose PDF extraction is heavily fragmented. |
+| **Library services** | *"How can I search for a book in the AdtU library?"* | Grounded answer from the H.N.D.B. Central Library pages. |
+| **Safe Escalation** *(separate safety button)* | *"What is the WiFi password for the boys hostel?"* | The system attempts retrieval, finds no password, and safely generates a staff support ticket instead of guessing. Rejected by the Stage 1 gate, so it never reaches the LLM. |
 | **Hard OOS** | *"What is the capital of France?"* | Immediate, cheap rejection without invoking embeddings or generative LLMs. |
-| **Safe Escalation** | *"What is the WiFi password for the boys hostel?"* | The system attempts retrieval, finds no password, and safely generates a staff support ticket instead of guessing. |
 | **Ticket Resolution** | *(Using the Admin UI)* | Staff can view the escalated ticket from the previous step and mark it resolved. |
+
+Questions the knowledge base cannot actually answer are deliberately **not**
+offered as demo cards. Three earlier suggestions were removed for exactly that
+reason -- hostel *amenities* (no chunk in the corpus describes any), an
+admission *document checklist* (not present), and the *next* holiday (requires
+date arithmetic the grounding contract forbids). Each of those could only ever
+escalate, which is correct behaviour but a poor demonstration.
 
 ## 💻 Tech Stack
 
@@ -96,7 +109,7 @@ These exact scenarios are available via quick-start buttons on the Live Demo hom
 - **Backend:** FastAPI (Python 3.12)
 - **Machine Learning:** Scikit-learn (TF-IDF + LinearSVC classifier)
 - **RAG / Vector Store:** ChromaDB + Google `gemini-embedding-2`
-- **Generation:** Google `gemini-2.5-flash`
+- **Generation:** Google `gemini-3.6-flash`
 - **Storage:** SQLite (for ticket tracking)
 - **Testing:** `pytest`
 - **Deployment:** Render (FastAPI Backend) & Hugging Face Static Space (Vanilla Frontend)

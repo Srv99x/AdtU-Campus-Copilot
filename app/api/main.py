@@ -29,7 +29,14 @@ if str(ROOT) not in sys.path:
 # .env and working -- i.e. it told operators the system was down while it ran.
 ENV_PATH = ROOT / ".env"
 
-from app.rag.pipeline import run_rag_pipeline, RagResult, Citation, GateMetrics, RetrievedChunk
+from app.rag.pipeline import (
+    GENERATION_UNAVAILABLE_REASON,
+    run_rag_pipeline,
+    RagResult,
+    Citation,
+    GateMetrics,
+    RetrievedChunk,
+)
 from app.database.tickets import (
     initialize_database,
     get_ticket,
@@ -309,6 +316,18 @@ def chat_endpoint(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Pipeline error")
 
     if rag_result.status == "error":
+        # A generation-service outage (provider quota/overload/model
+        # availability) is a *temporary* condition, not a server defect and
+        # not a knowledge-base failure -- retrieval and the confidence gate
+        # already succeeded before it. 503 lets the UI say "try again in a
+        # moment" instead of reporting an internal error that makes the
+        # verified KB look broken. The detail is the pipeline's own
+        # user-safe sentence; no provider, quota, or model detail is exposed.
+        if rag_result.reason == GENERATION_UNAVAILABLE_REASON:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=rag_result.reason,
+            )
         # Controlled error return, preserving the high-level reason but masking the stacktrace
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=rag_result.reason)
 

@@ -317,6 +317,46 @@ button, input {
   line-height: 1.4;
 }
 
+/* Safety demonstration -- deliberately quieter than .suggestion-card so the
+   one intentionally-unanswerable question never reads as a verified example. */
+
+.safety-demo-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 1020px;
+  margin: 22px 0 0;
+}
+
+.safety-demo-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  letter-spacing: .01em;
+}
+
+.safety-demo-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--muted);
+  transition: border-color .18s, color .18s;
+}
+
+.safety-demo-card:hover {
+  border-color: var(--brand-tint);
+  color: var(--text);
+}
+
 /* ---------------- Chat transcript ---------------- */
 
 .chat-transcript {

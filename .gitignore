@@ -10,3 +10,18 @@ data/processed/derived_embeddings.json
 data/processed/derived_embeddings.tmp
 data/raw/
 inspection_tmp/
+
+# Local-only working directories -- never part of the distributable repo.
+.claude/
+scratch/
+releases/
+data/chroma/
+
+# Hugging Face Space metadata from the nested git repository under frontend/.
+# It belongs to that Space, not to this repository. frontend/.gitattributes in
+# particular declares "*.png filter=lfs", which would rewrite the real logo
+# into a 131-byte LFS pointer in a repo that does not use LFS.
+frontend/.git/
+frontend/.gitattributes
+frontend/README.md
+frontend/style.css

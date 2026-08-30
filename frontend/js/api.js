@@ -79,6 +79,17 @@ export async function postChat(query) {
   if (response.status === 422) {
     return { status: "error", reason: "Query rejected by server validation (e.g. too long)." };
   }
+  // 503 is the backend's specific signal that the *generation service* is
+  // temporarily unavailable (provider quota/overload/model availability) --
+  // retrieval and the confidence gate already succeeded, so the verified
+  // knowledge base is fine. Kept distinct from the generic 5xx message so an
+  // operator is never told the backend is broken when it is only busy.
+  if (response.status === 503) {
+    return {
+      status: "error",
+      reason: "The answer service is temporarily unavailable. The knowledge base is fine -- please try the question again in a moment.",
+    };
+  }
   if (response.status >= 500) {
     return { status: "error", reason: "Backend internal error. Please try again later." };
   }

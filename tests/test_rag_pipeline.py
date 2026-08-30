@@ -8,6 +8,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from app.rag.pipeline import (
+    GENERATION_UNAVAILABLE_REASON,
     GATE_MIN_DISTINCT_PARENTS,
     GATE_THETA_D,
     GateMetrics,
@@ -27,7 +28,7 @@ from app.rag.pipeline import (
     assess_retrieval_confidence,
     run_rag_pipeline,
 )
-from app.rag.generator import GenerationResult, Citation
+from app.rag.generator import GenerationResult, Citation, GenerationUnavailableError
 from app.database.tickets import Ticket
 
 
@@ -367,6 +368,35 @@ class TestRunRagPipelineOrchestrator(unittest.TestCase):
         self.assertIn("Internal error during grounded generation", result.reason)
         # Raw traceback should NOT be in reason
         self.assertNotIn("API down", result.reason)
+        mock_create_ticket.assert_not_called()
+
+    @patch("app.rag.pipeline.create_ticket")
+    @patch("app.rag.pipeline.generate_grounded_answer")
+    @patch("app.rag.pipeline.create_query_embedding")
+    @patch("app.rag.pipeline.predict_intent")
+    def test_generation_service_unavailable_is_reported_separately(
+        self, mock_predict, mock_embed, mock_generate, mock_create_ticket
+    ) -> None:
+        """A provider quota/overload/availability failure must be
+        distinguishable from an internal defect: retrieval and the gate
+        already succeeded, so the knowledge base is fine and the user should
+        be told to retry -- not that the backend is broken."""
+        mock_predict.return_value = "admissions"
+        mock_embed.return_value = [0.1] * 768
+        self.mock_collection.query.return_value = _chroma_response(["c1", "c2", "c3"], [0.15, 0.18, 0.20])
+
+        mock_generate.side_effect = GenerationUnavailableError(
+            "The generation service is temporarily unavailable."
+        )
+
+        result = run_rag_pipeline("question", self.mock_collection, self.db_path)
+
+        self.assertEqual(result.status, "error")
+        self.assertEqual(result.reason, GENERATION_UNAVAILABLE_REASON)
+        # No quota figures, model ids, or provider wording leak to the user.
+        for leak in ("quota", "429", "gemini", "RESOURCE_EXHAUSTED"):
+            self.assertNotIn(leak.lower(), result.reason.lower())
+        # A provider outage is not evidence about the query, so no ticket.
         mock_create_ticket.assert_not_called()
 
     @patch("app.rag.pipeline.create_ticket")

@@ -12,7 +12,13 @@ from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 from app.api.main import app, get_collection, get_db_path
-from app.rag.pipeline import RagResult, Citation, GateMetrics, RetrievedChunk
+from app.rag.pipeline import (
+    GENERATION_UNAVAILABLE_REASON,
+    RagResult,
+    Citation,
+    GateMetrics,
+    RetrievedChunk,
+)
 from app.database.tickets import initialize_database, create_ticket
 
 
@@ -310,6 +316,30 @@ class TestFastAPIWrapper(unittest.TestCase):
         response = self.client.post("/chat", json={"query": "test"})
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.json()["detail"], "Pipeline blew up")
+
+    @patch("app.api.main.run_rag_pipeline")
+    def test_generation_service_unavailable_returns_503(self, mock_run) -> None:
+        """The generation-service outage reason maps to 503, not 500, so the
+        UI can say "temporarily unavailable" instead of reporting an internal
+        error that makes the verified knowledge base look broken."""
+        mock_run.return_value = RagResult(
+            status="error",
+            query="test",
+            intent="admissions",
+            answer=None,
+            citations=None,
+            confidence_status="high",
+            ticket_id=None,
+            reason=GENERATION_UNAVAILABLE_REASON,
+            retrieved_chunks=[],
+            gate_metrics=None
+        )
+
+        response = self.client.post("/chat", json={"query": "test"})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["detail"], GENERATION_UNAVAILABLE_REASON)
+        for leak in ("quota", "429", "gemini", "api key"):
+            self.assertNotIn(leak, response.json()["detail"].lower())
 
     @patch("app.api.main.run_rag_pipeline")
     def test_unhandled_exception_returns_500(self, mock_run) -> None:

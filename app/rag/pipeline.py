@@ -177,10 +177,27 @@ if str(ROOT) not in sys.path:
 
 from app.classifier.predict import predict_intent
 from query_embed import create_query_embedding
-from app.rag.generator import Citation, generate_grounded_answer
+from app.rag.generator import (
+    Citation,
+    GenerationUnavailableError,
+    generate_grounded_answer,
+)
 from app.database.tickets import create_ticket
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Generation-service availability
+# ---------------------------------------------------------------------------
+# Reason string used when Stage 2 could not reach a working generation service
+# (provider quota exhausted, model overloaded, model unavailable). Retrieval
+# and the gate already SUCCEEDED in that case, so the knowledge base is fine;
+# the API maps this exact reason to HTTP 503 rather than 500 so the UI can say
+# "temporarily unavailable" instead of implying the KB is broken. It is shown
+# to users verbatim, so it must stay free of provider/quota/model detail.
+GENERATION_UNAVAILABLE_REASON: str = (
+    "The answer service is temporarily unavailable. Please try again in a moment."
+)
 
 # ---------------------------------------------------------------------------
 # Stage 1 gate configuration  (FROZEN — do not change)
@@ -538,6 +555,16 @@ def run_rag_pipeline(
     evidence_chunks = _expand_class_routine_evidence(chunks, collection)
     try:
         gen_result = generate_grounded_answer(clean_query, evidence_chunks)
+    except GenerationUnavailableError as e:
+        # Provider quota/overload/availability -- not a defect here, and not a
+        # knowledge-base problem: the evidence above already passed the gate.
+        logger.warning(f"Generation service unavailable: {e}")
+        return RagResult(
+            status="error", query=clean_query, intent=intent, answer=None, citations=None,
+            confidence_status=confidence_status, ticket_id=None,
+            reason=GENERATION_UNAVAILABLE_REASON,
+            retrieved_chunks=chunks, gate_metrics=gate_metrics,
+        )
     except Exception as e:
         logger.error(f"Gemini generation error: {e}")
         return RagResult(
@@ -1071,6 +1098,22 @@ def _run_oos_recovery(
     evidence_chunks = _expand_class_routine_evidence(chunks, collection)
     try:
         gen_result = generate_grounded_answer(query, evidence_chunks)
+    except GenerationUnavailableError as exc:
+        # Same distinction as the main path: provider unavailability, not a
+        # defect and not a knowledge-base failure.
+        logger.warning("OOS recovery generation service unavailable: %s", exc)
+        return RagResult(
+            status="error",
+            query=query,
+            intent="out_of_scope",
+            answer=None,
+            citations=None,
+            confidence_status=confidence_status,
+            ticket_id=None,
+            reason=GENERATION_UNAVAILABLE_REASON,
+            retrieved_chunks=chunks,
+            gate_metrics=gate_metrics,
+        )
     except Exception as exc:
         logger.error("OOS recovery Gemini generation error: %s", exc)
         return RagResult(

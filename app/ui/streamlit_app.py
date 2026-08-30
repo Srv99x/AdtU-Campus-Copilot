@@ -29,30 +29,35 @@ TIMEOUT_SEC = 30
 # manually typed chat input. No answers are hardcoded here -- clicking a
 # card only submits its `query` to the real backend, same as typing it.
 # ---------------------------------------------------------------------------
+# Every query below is verified against the live 957-vector
+# `adtu_knowledge` collection: classifier intent, retrieval category, the
+# chunk that actually holds the answer, and the Stage 1 gate margin. Kept
+# identical to frontend/js/render-home.js's HOME_SUGGESTIONS, where the
+# supporting chunk id for each one is documented in full.
 DEMO_SCENARIOS: list[dict[str, str]] = [
     {
-        "label": "📄 What documents are required for BTech admission at AdtU?",
-        "query": "What documents are required for BTech admission at AdtU?",
+        "label": "📄 What is the minimum eligibility for B.Sc. Microbiology at AdtU?",
+        "query": "What is the minimum eligibility for B.Sc. Microbiology at AdtU?",
     },
     {
-        "label": "🎓 What scholarships are available?",
-        "query": "What scholarships are available?",
+        "label": "💰 What is the total programme fee for B.Pharm at AdtU?",
+        "query": "What is the total programme fee for B.Pharm at AdtU?",
     },
     {
-        "label": "🗓️ Show me the CSE DS & AI IBM class routine",
-        "query": "Show me the CSE DS & AI IBM class routine",
+        "label": "🎓 What scholarship is available for CBSE board students with 95%?",
+        "query": "What scholarship is available for CBSE board students with 95%?",
     },
     {
-        "label": "🏠 What are the hostel facilities?",
-        "query": "What are the hostel facilities?",
+        "label": "🏠 What are the names of the girls hostel blocks at AdtU?",
+        "query": "What are the names of the girls hostel blocks at AdtU?",
     },
     {
-        "label": "📅 When is the next university holiday?",
-        "query": "When is the next university holiday?",
+        "label": "🗓️ Which room is the B.Tech CSE DS and AI IBM Section A first semester class held in?",
+        "query": "Which room is the B.Tech CSE DS and AI IBM Section A first semester class held in?",
     },
     {
-        "label": "💰 How much are the BTech fees?",
-        "query": "How much are the BTech fees?",
+        "label": "📚 How can I search for a book in the AdtU library?",
+        "query": "How can I search for a book in the AdtU library?",
     },
 ]
 _PENDING_DEMO_QUERY_KEY = "_pending_demo_query"

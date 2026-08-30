@@ -19,6 +19,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import errors as genai_errors
 from google.genai import types
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +29,27 @@ if str(ROOT) not in sys.path:
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.rag.pipeline import RetrievedChunk
+
+
+# Provider HTTP codes that mean "the generation service could not serve this
+# request right now" rather than "this pipeline has a defect": 429 quota or
+# rate limit, 503 overloaded, 500/502/504 provider-side faults, and 404 for a
+# model that has been retired or is not available to this key.
+_UNAVAILABLE_PROVIDER_CODES: frozenset[int] = frozenset({404, 429, 500, 502, 503, 504})
+
+
+class GenerationUnavailableError(RuntimeError):
+    """Stage 2 could not reach a working generation service.
+
+    Raised ONLY when retrieval and the Stage 1 confidence gate have already
+    succeeded -- so the knowledge base and the evidence are fine, and the
+    identical query will usually succeed once the provider recovers. This is
+    deliberately distinct from every other failure, which stays a generic
+    internal error.
+
+    Carries no provider text: callers must never surface quota figures, model
+    ids, API keys, or raw provider errors to a user.
+    """
 
 
 @dataclass
@@ -56,9 +78,19 @@ When answering, cite the exact source/document from the supplied metadata."""
 
 
 def _generation_model() -> str:
-    """Return the configured Gemini generation model."""
+    """Return the configured Gemini generation model.
+
+    The fallback was "gemini-2.5-flash" (the model this pipeline was
+    validated on). Google has since retired that model for new API keys --
+    it now answers 404 NOT_FOUND with "no longer available to new users.
+    Please update your code to use models/gemini-3.6-flash" -- so an
+    environment that relied on this default failed *every* /chat call at
+    Stage 2. Only the fallback model id changes here; the SYSTEM_PROMPT
+    grounding contract, temperature, and INSUFFICIENT_EVIDENCE handling
+    are untouched.
+    """
     load_dotenv(ROOT / ".env")
-    return os.getenv("GEMINI_GENERATION_MODEL", "gemini-2.5-flash")
+    return os.getenv("GEMINI_GENERATION_MODEL", "gemini-3.6-flash")
 
 
 def format_evidence(chunks: list[RetrievedChunk]) -> str:
@@ -201,14 +233,26 @@ def generate_grounded_answer(query: str, evidence: list[RetrievedChunk]) -> Gene
     client = genai.Client(api_key=api_key)
     
     # We use generate_content with a strict system instruction
-    result = client.models.generate_content(
-        model=model,
-        contents=[types.Content(parts=[types.Part(text=prompt)])],
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-            temperature=0.0,  # Zero temperature for strict grounding
+    try:
+        result = client.models.generate_content(
+            model=model,
+            contents=[types.Content(parts=[types.Part(text=prompt)])],
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                temperature=0.0,  # Zero temperature for strict grounding
+            )
         )
-    )
+    except genai_errors.APIError as exc:
+        # Quota/overload/model-availability failures are a property of the
+        # provider, not of the retrieved evidence. Translate them into one
+        # typed error so the API can say "temporarily unavailable" instead of
+        # reporting an internal fault that makes the KB look broken. Any other
+        # provider error keeps propagating unchanged.
+        if exc.code in _UNAVAILABLE_PROVIDER_CODES:
+            raise GenerationUnavailableError(
+                "The generation service is temporarily unavailable."
+            ) from exc
+        raise
 
     raw_text = result.text if result.text else ""
     cleaned_text = raw_text.strip()
