@@ -213,7 +213,6 @@ As a hackathon MVP, the system has several known boundaries:
 ## 👥 Team & Credits
 
 - **Author:** Sourav Chakraborty
-- **License:** MIT License
 
 ---
 *Built for the AdtU Campus Copilot initiative.*
