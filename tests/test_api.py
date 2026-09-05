@@ -60,13 +60,14 @@ class TestFastAPIWrapper(unittest.TestCase):
         mock_ready_collection.count.return_value = 957
         mock_get_collection.return_value = mock_ready_collection
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value", "GROQ_API_KEY": "test-key-value"}):
             response = self.client.get("/ready")
 
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["status"], "ready")
         self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertTrue(data["checks"]["groq_api_key"]["ok"])
         self.assertTrue(data["checks"]["chroma"]["ok"])
         # Never expose the actual key value
         self.assertNotIn("test-key-value", response.text)
@@ -84,7 +85,8 @@ class TestFastAPIWrapper(unittest.TestCase):
         env_file = Path(self.temp_dir.name) / "dotenv_only.env"
         env_file.write_text(
             "GEMINI_API_KEY=key-from-dotenv-file\n"
-            "GEMINI_GENERATION_MODEL=gemini-2.5-flash\n",
+            "GROQ_API_KEY=groq-key-from-dotenv-file\n"
+            "GROQ_GENERATION_MODEL=openai/gpt-oss-120b\n",
             encoding="utf-8",
         )
 
@@ -92,6 +94,7 @@ class TestFastAPIWrapper(unittest.TestCase):
         # load_dotenv performs here cannot leak into any other test.
         with patch.dict(os.environ), patch("app.api.main.ENV_PATH", env_file):
             os.environ.pop("GEMINI_API_KEY", None)
+            os.environ.pop("GROQ_API_KEY", None)
             self.assertNotIn("GEMINI_API_KEY", os.environ)  # precondition
             response = self.client.get("/ready")
 
@@ -99,6 +102,7 @@ class TestFastAPIWrapper(unittest.TestCase):
         data = response.json()
         self.assertEqual(data["status"], "ready")
         self.assertTrue(data["checks"]["gemini_api_key"]["ok"])
+        self.assertTrue(data["checks"]["groq_api_key"]["ok"])
         self.assertEqual(data["checks"]["gemini_api_key"]["detail"], "present")
         # Presence only -- the value from .env is never echoed back.
         self.assertNotIn("key-from-dotenv-file", response.text)
@@ -114,10 +118,11 @@ class TestFastAPIWrapper(unittest.TestCase):
         mock_get_collection.return_value = mock_ready_collection
 
         env_file = Path(self.temp_dir.name) / "no_key.env"
-        env_file.write_text("GEMINI_GENERATION_MODEL=gemini-2.5-flash\n", encoding="utf-8")
+        env_file.write_text("GROQ_GENERATION_MODEL=openai/gpt-oss-120b\n", encoding="utf-8")
 
         with patch.dict(os.environ), patch("app.api.main.ENV_PATH", env_file):
             os.environ.pop("GEMINI_API_KEY", None)
+            os.environ.pop("GROQ_API_KEY", None)
             response = self.client.get("/ready")
 
         self.assertEqual(response.status_code, 503)
@@ -136,7 +141,7 @@ class TestFastAPIWrapper(unittest.TestCase):
         missing_env = Path(self.temp_dir.name) / "does_not_exist.env"
         self.assertFalse(missing_env.exists())
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "exported-key"}), \
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "exported-key", "GROQ_API_KEY": "exported-key"}), \
              patch("app.api.main.ENV_PATH", missing_env):
             response = self.client.get("/ready")
 
@@ -153,9 +158,9 @@ class TestFastAPIWrapper(unittest.TestCase):
         mock_get_collection.return_value = mock_ready_collection
 
         env_file = Path(self.temp_dir.name) / "conflicting.env"
-        env_file.write_text("GEMINI_API_KEY=value-from-file\n", encoding="utf-8")
+        env_file.write_text("GEMINI_API_KEY=value-from-file\nGROQ_API_KEY=value-from-file\n", encoding="utf-8")
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "value-from-shell"}), \
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "value-from-shell", "GROQ_API_KEY": "value-from-shell"}), \
              patch("app.api.main.ENV_PATH", env_file):
             response = self.client.get("/ready")
             self.assertEqual(os.environ["GEMINI_API_KEY"], "value-from-shell")
@@ -170,7 +175,7 @@ class TestFastAPIWrapper(unittest.TestCase):
         mock_ready_collection.count.return_value = 957
         mock_get_collection.return_value = mock_ready_collection
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": ""}):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "", "GROQ_API_KEY": "test-key-value"}):
             response = self.client.get("/ready")
 
         self.assertEqual(response.status_code, 503)
@@ -183,7 +188,7 @@ class TestFastAPIWrapper(unittest.TestCase):
     def test_ready_chroma_unreachable_returns_503(self, mock_get_collection: MagicMock) -> None:
         mock_get_collection.side_effect = RuntimeError("Could not connect to Chroma")
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value", "GROQ_API_KEY": "test-key-value"}):
             response = self.client.get("/ready")
 
         self.assertEqual(response.status_code, 503)
@@ -200,7 +205,7 @@ class TestFastAPIWrapper(unittest.TestCase):
         mock_empty_collection.count.return_value = 0
         mock_get_collection.return_value = mock_empty_collection
 
-        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value"}):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key-value", "GROQ_API_KEY": "test-key-value"}):
             response = self.client.get("/ready")
 
         self.assertEqual(response.status_code, 503)

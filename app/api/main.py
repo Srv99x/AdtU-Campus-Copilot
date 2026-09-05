@@ -246,13 +246,14 @@ def health_check() -> dict:
 def readiness_check() -> JSONResponse:
     """Dependency-aware readiness check.
 
-    Verifies (without ever calling Gemini or generating an embedding):
-      - GEMINI_API_KEY is present and non-blank in the environment, counting
+    Verifies (without ever calling a provider or generating an embedding):
+      - GROQ_API_KEY (Stage 2 answer generation) is present and non-blank.
+      - GEMINI_API_KEY (query embedding) is present and non-blank. Both count
         the repository-root .env that the rest of the runtime already reads.
       - The canonical runtime Chroma collection (via the existing
         get_collection() singleton/config) is reachable and non-empty.
 
-    Never exposes the API key value itself, only presence/absence.
+    Never exposes the API key values themselves, only presence/absence.
     """
     checks: dict[str, dict[str, Any]] = {}
     all_ok = True
@@ -262,14 +263,18 @@ def readiness_check() -> JSONResponse:
     # variables already exported in the real process environment.
     load_dotenv(ENV_PATH)
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    key_present = bool(api_key and api_key.strip())
-    checks["gemini_api_key"] = {
-        "ok": key_present,
-        "detail": "present" if key_present else "missing or blank",
-    }
-    if not key_present:
-        all_ok = False
+    for env_var, check_name in (
+        ("GROQ_API_KEY", "groq_api_key"),
+        ("GEMINI_API_KEY", "gemini_api_key"),
+    ):
+        api_key = os.getenv(env_var)
+        key_present = bool(api_key and api_key.strip())
+        checks[check_name] = {
+            "ok": key_present,
+            "detail": "present" if key_present else "missing or blank",
+        }
+        if not key_present:
+            all_ok = False
 
     try:
         collection = get_collection()

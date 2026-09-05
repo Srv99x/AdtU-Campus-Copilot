@@ -186,7 +186,7 @@ def check_backend_status() -> dict:
     """Resolve the backend into one of three distinct operator-facing states.
 
     Uses /ready (not /health): /health is a static liveness ping that stays
-    green even when Chroma is missing or the Gemini key is absent, which hid
+    green even when Chroma is missing or a provider key is absent, which hid
     a broken backend behind an "Online" badge. /ready reports the real
     dependency state, and one call distinguishes all three cases:
 
@@ -195,7 +195,7 @@ def check_backend_status() -> dict:
         "ready"     -- alive and every dependency check passed
 
     Returns {"state": str, "failed": list[str]}. `failed` names the failing
-    checks (e.g. "chroma", "gemini_api_key") straight from the /ready
+    checks (e.g. "chroma", "groq_api_key", "gemini_api_key") straight from the /ready
     payload, which reports only presence/absence -- never a key value.
     """
     try:

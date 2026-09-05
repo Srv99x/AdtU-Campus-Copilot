@@ -30,7 +30,7 @@ graph TD
     A([Student Query]) --> B[TF-IDF Intent Classifier]
     B --> C[Filtered ChromaDB Retrieval]
     C --> D{Confidence Gate}
-    D -- High Confidence --> E[Gemini Flash Grounded Generation]
+    D -- High Confidence --> E[Groq Grounded Generation]
     D -- Low Confidence / Insufficient Evidence --> F[SQLite Ticket Escalation]
     E --> G([Verified Answer with Citations])
     F --> H([Safe Refusal & Staff Ticket])
@@ -54,7 +54,7 @@ graph TD
 - **Scholarship Routing Correction:** Intercepts monetary queries and directs them to the fees category table.
 - **Class-Routine Table Assembly:** Re-unites headers with their complex sibling timetables during retrieval.
 - **Ticket Resolution / Admin Workspace:** A dedicated UI panel for staff to handle escalated support tickets.
-- **Readiness Endpoint:** Robust `/health` and `/ready` checks to ensure downstream dependencies (Chroma, Gemini) are live.
+- **Readiness Endpoint:** Robust `/health` and `/ready` checks to ensure downstream dependencies (Chroma, Groq, Gemini) are live.
 - **Trust / Evidence Panel:** Every response includes an expandable "Why this answer?" UI to show intent, confidence, and exact cited text.
 - **Guided Demo Mode:** One-click scenario cards on the home screen to demonstrate the system's capabilities.
 
@@ -66,7 +66,7 @@ graph TD
 | **Filtered Retrieval** | Embeds the query via `gemini-embedding-2` and searches ChromaDB. | Pulls the most mathematically relevant verified facts. |
 | **Confidence Gate** | Evaluates if the top retrieved evidence exceeds safety thresholds. | Stops hallucination *before* the LLM generation phase begins. |
 | **Safe Escalation** | If confidence is too low, creates a SQLite support ticket. | Protects the university's reputation by avoiding wrong answers. |
-| **Grounded Generation** | `gemini-3.6-flash` synthesizes a readable response with citations. | Delivers a clean, conversational, trustworthy answer to the student. |
+| **Grounded Generation** | Groq (`openai/gpt-oss-120b`) synthesizes a readable response with citations. | Delivers a clean, conversational, trustworthy answer to the student. |
 
 ## 🛡️ Trust & Non-Fabrication
 
@@ -108,8 +108,8 @@ escalate, which is correct behaviour but a poor demonstration.
 - **Frontend:** Vanilla HTML / CSS / JavaScript
 - **Backend:** FastAPI (Python 3.12)
 - **Machine Learning:** Scikit-learn (TF-IDF + LinearSVC classifier)
-- **RAG / Vector Store:** ChromaDB + Google `gemini-embedding-2`
-- **Generation:** Google `gemini-3.6-flash`
+- **RAG / Vector Store:** ChromaDB + Google `gemini-embedding-2` (query embedding)
+- **Generation:** Groq `openai/gpt-oss-120b`
 - **Storage:** SQLite (for ticket tracking)
 - **Testing:** `pytest`
 - **Deployment:** Render (FastAPI Backend) & Hugging Face Static Space (Vanilla Frontend)
@@ -122,7 +122,7 @@ AdtU-Campus-Copilot/
 │   ├── api/          # FastAPI endpoints, health checks, and CORS configuration
 │   ├── classifier/   # Frozen TF-IDF + SVC intent classification model
 │   ├── database/     # SQLite ticket management and schema
-│   └── rag/          # Core pipeline, retrieval logic, gating, and Gemini generation
+│   └── rag/          # Core pipeline, retrieval logic, gating, and Groq generation
 ├── frontend/         # Vanilla HTML/JS frontend (Hugging Face Space)
 ├── tests/            # Comprehensive pytest suite
 ├── evaluation/       # Performance evaluation and metrics scripts
@@ -146,7 +146,7 @@ Follow these steps to run the complete stack locally.
    ```powershell
    Copy-Item .env.example .env
    ```
-   Edit `.env` and add your `GEMINI_API_KEY`. (Do not change the model names unless necessary).
+   Edit `.env` and add your `GROQ_API_KEY` (answer generation) and `GEMINI_API_KEY` (query embedding). (Do not change the model names unless necessary).
 
 3. **Install the Knowledge Base Snapshot:**
    Extract the pre-compiled `adtu_kb_snapshot_957v_20260822.zip` into the repository root so that `data/processed/chroma_db/` and `data/processed/derived_embeddings.json` are populated.
@@ -172,7 +172,7 @@ Follow these steps to run the complete stack locally.
 ## ☁️ Deployment Architecture
 
 - **Frontend:** Deployed as a static application on **Hugging Face Static Space**. It uses an injected `API_BASE_URL` to communicate with the backend.
-- **Backend:** Hosted on **Render**, serving the FastAPI endpoints (`/chat`, `/tickets`, `/ready`).
+- **Backend:** Hosted on **Render**, serving the FastAPI endpoints (`/chat`, `/tickets`, `/ready`). Requires `GROQ_API_KEY` (answer generation) and `GEMINI_API_KEY` (query embedding) set as environment variables on the service.
 - **Knowledge Base:** The validated ChromaDB snapshot is fetched at startup/build time. These 957-vector binary artifacts are intentionally `.gitignore`d to prevent repository bloat and accidental overrides.
 
 ## 📦 Knowledge Base Snapshot
