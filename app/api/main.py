@@ -29,7 +29,14 @@ if str(ROOT) not in sys.path:
 # .env and working -- i.e. it told operators the system was down while it ran.
 ENV_PATH = ROOT / ".env"
 
-from app.rag.pipeline import run_rag_pipeline, RagResult, Citation, GateMetrics, RetrievedChunk
+from app.rag.pipeline import (
+    GENERATION_UNAVAILABLE_REASON,
+    run_rag_pipeline,
+    RagResult,
+    Citation,
+    GateMetrics,
+    RetrievedChunk,
+)
 from app.database.tickets import (
     initialize_database,
     get_ticket,
@@ -239,13 +246,14 @@ def health_check() -> dict:
 def readiness_check() -> JSONResponse:
     """Dependency-aware readiness check.
 
-    Verifies (without ever calling Gemini or generating an embedding):
-      - GEMINI_API_KEY is present and non-blank in the environment, counting
+    Verifies (without ever calling a provider or generating an embedding):
+      - GROQ_API_KEY (Stage 2 answer generation) is present and non-blank.
+      - GEMINI_API_KEY (query embedding) is present and non-blank. Both count
         the repository-root .env that the rest of the runtime already reads.
       - The canonical runtime Chroma collection (via the existing
         get_collection() singleton/config) is reachable and non-empty.
 
-    Never exposes the API key value itself, only presence/absence.
+    Never exposes the API key values themselves, only presence/absence.
     """
     checks: dict[str, dict[str, Any]] = {}
     all_ok = True
@@ -255,14 +263,18 @@ def readiness_check() -> JSONResponse:
     # variables already exported in the real process environment.
     load_dotenv(ENV_PATH)
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    key_present = bool(api_key and api_key.strip())
-    checks["gemini_api_key"] = {
-        "ok": key_present,
-        "detail": "present" if key_present else "missing or blank",
-    }
-    if not key_present:
-        all_ok = False
+    for env_var, check_name in (
+        ("GROQ_API_KEY", "groq_api_key"),
+        ("GEMINI_API_KEY", "gemini_api_key"),
+    ):
+        api_key = os.getenv(env_var)
+        key_present = bool(api_key and api_key.strip())
+        checks[check_name] = {
+            "ok": key_present,
+            "detail": "present" if key_present else "missing or blank",
+        }
+        if not key_present:
+            all_ok = False
 
     try:
         collection = get_collection()
@@ -309,6 +321,18 @@ def chat_endpoint(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Pipeline error")
 
     if rag_result.status == "error":
+        # A generation-service outage (provider quota/overload/model
+        # availability) is a *temporary* condition, not a server defect and
+        # not a knowledge-base failure -- retrieval and the confidence gate
+        # already succeeded before it. 503 lets the UI say "try again in a
+        # moment" instead of reporting an internal error that makes the
+        # verified KB look broken. The detail is the pipeline's own
+        # user-safe sentence; no provider, quota, or model detail is exposed.
+        if rag_result.reason == GENERATION_UNAVAILABLE_REASON:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=rag_result.reason,
+            )
         # Controlled error return, preserving the high-level reason but masking the stacktrace
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=rag_result.reason)
 

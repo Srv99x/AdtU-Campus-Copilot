@@ -17,9 +17,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+import groq
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -28,6 +27,27 @@ if str(ROOT) not in sys.path:
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.rag.pipeline import RetrievedChunk
+
+
+# Provider HTTP codes that mean "the generation service could not serve this
+# request right now" rather than "this pipeline has a defect": 429 quota or
+# rate limit, 503 overloaded, 500/502/504 provider-side faults, and 404 for a
+# model that has been retired or is not available to this key.
+_UNAVAILABLE_PROVIDER_CODES: frozenset[int] = frozenset({404, 429, 500, 502, 503, 504})
+
+
+class GenerationUnavailableError(RuntimeError):
+    """Stage 2 could not reach a working generation service.
+
+    Raised ONLY when retrieval and the Stage 1 confidence gate have already
+    succeeded -- so the knowledge base and the evidence are fine, and the
+    identical query will usually succeed once the provider recovers. This is
+    deliberately distinct from every other failure, which stays a generic
+    internal error.
+
+    Carries no provider text: callers must never surface quota figures, model
+    ids, API keys, or raw provider errors to a user.
+    """
 
 
 @dataclass
@@ -56,9 +76,21 @@ When answering, cite the exact source/document from the supplied metadata."""
 
 
 def _generation_model() -> str:
-    """Return the configured Gemini generation model."""
+    """Return the configured Groq generation model.
+
+    Stage 2 generation runs on Groq's OpenAI-compatible chat API. The
+    fallback is "openai/gpt-oss-120b" -- large enough to hold the strict
+    grounding contract and reliably emit INSUFFICIENT_EVIDENCE when the
+    supplied evidence does not support an answer. Override with
+    GROQ_GENERATION_MODEL. The SYSTEM_PROMPT grounding contract,
+    temperature, and INSUFFICIENT_EVIDENCE handling are unchanged.
+
+    Note: query embedding (query_embed.py) still runs on Gemini -- the
+    Chroma vector store was built with gemini-embedding-2 and Groq has no
+    embeddings API.
+    """
     load_dotenv(ROOT / ".env")
-    return os.getenv("GEMINI_GENERATION_MODEL", "gemini-2.5-flash")
+    return os.getenv("GROQ_GENERATION_MODEL", "openai/gpt-oss-120b")
 
 
 def format_evidence(chunks: list[RetrievedChunk]) -> str:
@@ -187,31 +219,44 @@ def generate_grounded_answer(query: str, evidence: list[RetrievedChunk]) -> Gene
         )
 
     model = _generation_model()
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set.")
+        raise RuntimeError("GROQ_API_KEY is not set.")
 
     formatted_context = format_evidence(evidence)
-    
+
     prompt = (
         f"USER QUERY:\n{query}\n\n"
         f"SUPPLIED EVIDENCE:\n{formatted_context}\n"
     )
 
-    client = genai.Client(api_key=api_key)
-    
-    # We use generate_content with a strict system instruction
-    result = client.models.generate_content(
-        model=model,
-        contents=[types.Content(parts=[types.Part(text=prompt)])],
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+    client = groq.Groq(api_key=api_key)
+
+    # Strict system instruction + zero temperature for grounded generation.
+    try:
+        result = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
             temperature=0.0,  # Zero temperature for strict grounding
         )
-    )
+    except (groq.APIStatusError, groq.APIConnectionError) as exc:
+        # Quota/overload/model-availability failures are a property of the
+        # provider, not of the retrieved evidence. Translate them into one
+        # typed error so the API can say "temporarily unavailable" instead of
+        # reporting an internal fault that makes the KB look broken. Any other
+        # provider error keeps propagating unchanged.
+        code = getattr(exc, "status_code", None)
+        if isinstance(exc, groq.APIConnectionError) or code in _UNAVAILABLE_PROVIDER_CODES:
+            raise GenerationUnavailableError(
+                "The generation service is temporarily unavailable."
+            ) from exc
+        raise
 
-    raw_text = result.text if result.text else ""
-    cleaned_text = raw_text.strip()
+    raw_text = result.choices[0].message.content if result.choices else ""
+    cleaned_text = (raw_text or "").strip()
 
     if cleaned_text == "INSUFFICIENT_EVIDENCE":
         return GenerationResult(

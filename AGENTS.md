@@ -6,7 +6,7 @@ Query
 → TF-IDF Classifier
 → Filtered ChromaDB Retrieval
 → Confidence Gate
-→ Gemini Flash OR SQLite Ticket Escalation
+→ Groq Grounded Generation OR SQLite Ticket Escalation
 → FastAPI
 → Streamlit
 
@@ -15,9 +15,9 @@ Query
 1. Inspect existing code before modifying it.
 2. Do not rewrite unrelated files.
 3. Preserve the locked application architecture.
-4. Do not replace ChromaDB or the Gemini runtime embedding/generation architecture unless explicitly instructed.
-5. Use `gemini-embedding-2` for runtime embeddings.
-6. Use the configurable Gemini Flash generation model from `GEMINI_GENERATION_MODEL`.
+4. Do not replace ChromaDB, the Gemini runtime embedding, or the Groq generation architecture unless explicitly instructed.
+5. Use `gemini-embedding-2` for runtime query embeddings (`GEMINI_API_KEY`).
+6. Use the configurable Groq generation model from `GROQ_GENERATION_MODEL` (`GROQ_API_KEY`).
 7. Never hardcode API keys. Use environment variables.
 8. Use Python type hints.
 9. Add tests for new logic.

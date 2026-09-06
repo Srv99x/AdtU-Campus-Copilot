@@ -2,6 +2,7 @@ fastapi
 uvicorn
 chromadb
 google-genai
+groq
 scikit-learn
 pytest
 python-dotenv

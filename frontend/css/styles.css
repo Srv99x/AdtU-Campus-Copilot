@@ -317,6 +317,46 @@ button, input {
   line-height: 1.4;
 }
 
+/* Safety demonstration -- deliberately quieter than .suggestion-card so the
+   one intentionally-unanswerable question never reads as a verified example. */
+
+.safety-demo-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 1020px;
+  margin: 22px 0 0;
+}
+
+.safety-demo-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: .82rem;
+  letter-spacing: .01em;
+}
+
+.safety-demo-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--muted);
+  transition: border-color .18s, color .18s;
+}
+
+.safety-demo-card:hover {
+  border-color: var(--brand-tint);
+  color: var(--text);
+}
+
 /* ---------------- Chat transcript ---------------- */
 
 .chat-transcript {
@@ -566,19 +606,75 @@ button, input {
 /* ---------------- Responsive ---------------- */
 
 @media (max-width: 900px) {
-  .app-shell { flex-direction: column; }
+  /* The shell becomes ONE screen tall, not a page that grows.
+     On desktop the sidebar sits beside .main, so .app-shell resolves to about
+     100vh and the flex column inside .main keeps the composer pinned at the
+     bottom. Once the sidebar stacks on top, `min-height: 100vh` stopped
+     bounding anything: the hero and transcript grew freely and pushed the
+     chat input ~1500px down a 1572px page, so a phone user had to scroll the
+     whole page to reach the input, again after every answer.
+
+     Giving the shell a DEFINITE height (plus min-height: 0 down the chain)
+     is what lets .home-hero / .chat-transcript become the scrolling elements
+     and the composer stay put. 100dvh follows the mobile URL bar; the plain
+     100vh above it is the fallback for browsers without dvh. */
+  .app-shell {
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
   .sidebar {
     width: auto;
+    flex: none;
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
   .sidebar-brand { margin-bottom: 0; margin-right: auto; }
   .nav-label { display: none; }
   .btn-block { width: auto; }
-  .suggestion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* The full-size logo was 242px tall -- 41% of a 375x812 phone screen before
+     any content. Capping it puts the suggestion cards near the fold. */
+  .brand-logo { max-height: 44px; width: auto; }
+
+  .topbar { padding: 10px 16px; }
+  .main { min-height: 0; }
+
+  /* The two scrolling regions. justify-content is reset to flex-start because
+     a centered flex container whose content overflows makes the top of that
+     content unreachable -- the scroll range starts below it. */
+  .home-hero {
+    min-height: 0;
+    overflow-y: auto;
+    justify-content: flex-start;
+    padding: 16px 16px 8px;
+  }
+  .chat-transcript { min-height: 0; }
+
+  /* main.js hides .home-hero once a conversation starts, so exactly one of
+     these two panes is on screen at a time -- but an EMPTY transcript still
+     claimed its `flex: 1` share, taking half the bounded viewport and
+     squeezing the home hero into ~229px with 917px of cards inside it. With
+     no space claimed while empty, the hero gets the full content area. */
+  .chat-transcript:empty { flex: none; }
+
+  /* Pinned: never scrolls out of reach. */
+  .composer { flex: none; padding: 10px 16px 14px; }
+
+  /* Touch targets at the 44px minimum (WCAG 2.5.5 / iOS HIG). Scoped to this
+     breakpoint so the desktop control sizes are untouched. */
+  .icon-btn { width: 44px; height: 44px; }
+  .send-btn { width: 44px; height: 44px; }
+  .chat-input { padding: 13px 0; }
+
+  .suggestion-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px; }
 }
 
 @media (max-width: 640px) {

@@ -244,16 +244,29 @@ class TestNoFabricatedMockDataCarriedOver(unittest.TestCase):
     def test_home_suggestions_are_the_six_approved_real_queries(self) -> None:
         content = (FRONTEND / "js" / "render-home.js").read_text(encoding="utf-8")
         approved_queries = [
-            "What documents are required for BTech admission at AdtU?",
-            "What scholarships are available?",
-            "Show me the CSE DS & AI IBM class routine",
-            "What are the hostel facilities?",
-            "When is the next university holiday?",
-            "How much are the BTech fees?",
+            "What is the minimum eligibility for B.Sc. Microbiology at AdtU?",
+            "What is the total programme fee for B.Pharm at AdtU?",
+            "What scholarship is available for CBSE board students with 95%?",
+            "What are the names of the girls hostel blocks at AdtU?",
+            "Which room is the B.Tech CSE DS and AI IBM Section A first semester class held in?",
+            "How can I search for a book in the AdtU library?",
         ]
         for query in approved_queries:
             with self.subTest(query=query):
                 self.assertIn(query, content)
+
+    def test_safety_demo_query_is_separate_from_the_verified_cards(self) -> None:
+        """The one deliberately-unanswerable question must live in its own
+        SAFETY_DEMO export, never inside HOME_SUGGESTIONS, so it can never
+        be read as an ordinary successful example."""
+        content = (FRONTEND / "js" / "render-home.js").read_text(encoding="utf-8")
+        safety_query = "What is the WiFi password for the boys hostel?"
+        self.assertIn("SAFETY_DEMO", content)
+        self.assertIn(safety_query, content)
+        suggestions_block = content[
+            content.index("export const HOME_SUGGESTIONS"):content.index("export const SAFETY_DEMO")
+        ]
+        self.assertNotIn(safety_query, suggestions_block)
 
     def test_loading_state_has_no_fake_delay_timer(self) -> None:
         content = (FRONTEND / "js" / "render-chat.js").read_text(encoding="utf-8")

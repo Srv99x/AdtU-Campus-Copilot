@@ -62,31 +62,37 @@ class TestDemoScenarioDefinitions(unittest.TestCase):
         self.assertEqual(len(labels), len(set(labels)))
 
     def test_matches_the_six_approved_home_screen_queries(self) -> None:
-        """The home-screen suggestion cards must be exactly the six queries
-        fixed by the approved design (Final UI Pass) -- not a paraphrase or
-        a subset. Order isn't asserted so the cards stay reorderable."""
+        """The home-screen suggestion cards must be exactly the six verified
+        demo queries -- not a paraphrase or a subset. Order isn't asserted
+        so the cards stay reorderable.
+
+        This set replaced the original Final UI Pass six after each was
+        checked against the live knowledge base: three of the originals
+        asked for facts the corpus does not contain (hostel amenities, an
+        admission document checklist, the *next* holiday), so they could
+        only ever escalate."""
         approved_queries = {
-            "What documents are required for BTech admission at AdtU?",
-            "What scholarships are available?",
-            "Show me the CSE DS & AI IBM class routine",
-            "What are the hostel facilities?",
-            "When is the next university holiday?",
-            "How much are the BTech fees?",
+            "What is the minimum eligibility for B.Sc. Microbiology at AdtU?",
+            "What is the total programme fee for B.Pharm at AdtU?",
+            "What scholarship is available for CBSE board students with 95%?",
+            "What are the names of the girls hostel blocks at AdtU?",
+            "Which room is the B.Tech CSE DS and AI IBM Section A first semester class held in?",
+            "How can I search for a book in the AdtU library?",
         }
         self.assertEqual({s["query"] for s in DEMO_SCENARIOS}, approved_queries)
 
     def test_covers_the_six_required_scenario_themes(self) -> None:
         """Loose vocabulary checks, not exact-string checks, so this stays
-        robust to minor copy edits while still verifying every approved
-        topic domain (admissions, scholarships, class routine, hostel
-        facilities, holiday/calendar, fees) is represented."""
+        robust to minor copy edits while still verifying every demo topic
+        domain (admissions/eligibility, fees, scholarships, hostel, class
+        room/routine, library) is represented."""
         queries = [s["query"].lower() for s in DEMO_SCENARIOS]
 
-        self.assertTrue(any("admission" in q for q in queries), "expected an admissions scenario")
+        self.assertTrue(any("eligibilit" in q or "admission" in q for q in queries), "expected an admissions/eligibility scenario")
         self.assertTrue(any("scholarship" in q for q in queries), "expected a scholarships scenario")
-        self.assertTrue(any("routine" in q for q in queries), "expected a class-routine scenario")
-        self.assertTrue(any("hostel" in q or "facilit" in q for q in queries), "expected a hostel/facilities scenario")
-        self.assertTrue(any("holiday" in q for q in queries), "expected a holiday/calendar scenario")
+        self.assertTrue(any("class" in q or "routine" in q or "room" in q for q in queries), "expected a class-routine scenario")
+        self.assertTrue(any("hostel" in q for q in queries), "expected a hostel scenario")
+        self.assertTrue(any("library" in q for q in queries), "expected a library scenario")
         self.assertTrue(any("fee" in q for q in queries), "expected a fees scenario")
 
 
