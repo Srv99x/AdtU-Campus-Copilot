@@ -6,7 +6,7 @@
 
 <div align="center">
   <p>
-    <a href="ADD-LIVE-DEMO-URL"><strong>Live Demo</strong></a> •
+    <a href="https://srv99x-adtu-campus-copilot.static.hf.space/index.html"><strong>Live Demo</strong></a> •
     <a href="https://adtu-campus-copilot.onrender.com/health"><strong>Backend Status</strong></a>
   </p>
 </div>
